@@ -8,14 +8,16 @@ In order to do this, Rover:
 1. parses the `plan` and configuration files to generate three items: the resource overview (`rso`), the resource map (`map`), and the resource graph (`graph`).
 1. consumes the `rso`, `map`, and `graph` to generate an interactive configuration and state visualization hosts on `localhost:9000`.
 
+Feedback (via issues) and pull requests are appreciated! 
+
 ![Rover Screenshot](docs/rover-cropped-screenshot.png)
 
 ## Installation
 
-You can download Rover binary specific to your system by visiting the [Releases page](https://github.com/im2nguyen/rover/releases).
+You can download Rover binary specific to your system by visiting the [Releases page](https://github.com/im2nguyen/rover/releases). Download the binary, unzip, then move `rover` into your `PATH`.
 
-- [MacOS]
-- [Windows]
+- [rover zip — MacOS](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.0_darwin_amd64.zip)
+- [rover zip — Windows](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.0_windows_amd64.zip)
 
 ### Build from source
 
