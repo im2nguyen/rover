@@ -133,7 +133,7 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 				// 	nodeMap[i] = nm[i]
 				// }
 			case "var":
-				nm := parseVariable(rid[0], fname, id, rdata)
+				nm := parseVariable(id, fname, id, rdata)
 
 				for k, v := range nm {
 					nmo = append(nmo, k)
