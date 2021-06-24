@@ -1,0 +1,16 @@
+body.dark {
+  --bg-color: #181921;
+  --bg-secondary-color: #1c1c3f;
+  --font-color: #f5f5f5;
+  --color-grey: #ccc;
+  --color-darkGrey: #777;
+}
+
+:root {
+  --color-primary: #8450ba; /* Terraform brand color */
+}
+
+.card {
+  border: 1px solid var(--color-grey);
+  box-shadow: none;
+}

@@ -1,0 +1,398 @@
+{
+    "variables": {
+        "max_length": {
+            "value": 5
+        }
+    },
+    "output": {
+        "random_cat_name": {
+            "change": {
+                "actions": [
+                    "create"
+                ],
+                "before": null,
+                "after_unknown": true
+            },
+            "config": {
+                "expression": {
+                    "references": [
+                        "module.random_cat.random_name"
+                    ]
+                },
+                "description": "random_cat_name"
+            }
+        }
+    },
+    "resources": {
+        "module.random_cat": {
+            "change": {
+                "before": null
+            },
+            "config": {
+                "schema_version": 0
+            },
+            "module_config": {
+                "source": "./random-name",
+                "expressions": {
+                    "max_length": {
+                        "constant_value": "3"
+                    }
+                },
+                "module": {
+                    "outputs": {
+                        "random_name": {
+                            "expression": {
+                                "references": [
+                                    "random_pet.pet"
+                                ]
+                            }
+                        }
+                    },
+                    "resources": [
+                        {
+                            "address": "random_integer.pet_length",
+                            "mode": "managed",
+                            "type": "random_integer",
+                            "name": "pet_length",
+                            "provider_config_key": "random_cat:random",
+                            "expressions": {
+                                "max": {
+                                    "references": [
+                                        "var.max_length"
+                                    ]
+                                },
+                                "min": {
+                                    "constant_value": 1
+                                }
+                            },
+                            "schema_version": 0
+                        },
+                        {
+                            "address": "random_pet.pet",
+                            "mode": "managed",
+                            "type": "random_pet",
+                            "name": "pet",
+                            "provider_config_key": "random_cat:random",
+                            "expressions": {
+                                "length": {
+                                    "references": [
+                                        "random_integer.pet_length"
+                                    ]
+                                }
+                            },
+                            "schema_version": 0
+                        }
+                    ],
+                    "variables": {
+                        "max_length": {
+                            "default": 5
+                        }
+                    }
+                }
+            },
+            "children": {
+                "module.random_cat.random_integer.pet_length": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "max": 3,
+                            "min": 1,
+                            "seed": null
+                        },
+                        "after_unknown": {
+                            "id": true,
+                            "result": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                },
+                "module.random_cat.random_pet.pet": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "prefix": null,
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true,
+                            "length": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                }
+            }
+        },
+        "random_integer.pet_length": {
+            "change": {
+                "actions": [
+                    "no-op"
+                ],
+                "before": {
+                    "id": "3",
+                    "keepers": null,
+                    "max": 5,
+                    "min": 1,
+                    "result": 3,
+                    "seed": null
+                },
+                "after": {
+                    "id": "3",
+                    "keepers": null,
+                    "max": 5,
+                    "min": 1,
+                    "result": 3,
+                    "seed": null
+                },
+                "after_unknown": {}
+            },
+            "config": {
+                "address": "random_integer.pet_length",
+                "mode": "managed",
+                "type": "random_integer",
+                "name": "pet_length",
+                "provider_config_key": "random",
+                "expressions": {
+                    "max": {
+                        "references": [
+                            "var.max_length"
+                        ]
+                    },
+                    "min": {
+                        "constant_value": 1
+                    }
+                },
+                "schema_version": 0
+            }
+        },
+        "random_pet.birds": {
+            "change": {
+                "before": null
+            },
+            "config": {
+                "address": "random_pet.birds",
+                "mode": "managed",
+                "type": "random_pet",
+                "name": "birds",
+                "provider_config_key": "random",
+                "expressions": {
+                    "length": {
+                        "references": [
+                            "each.value"
+                        ]
+                    },
+                    "prefix": {
+                        "references": [
+                            "each.key"
+                        ]
+                    }
+                },
+                "schema_version": 0,
+                "for_each_expression": {
+                    "constant_value": {
+                        "billy": 1,
+                        "bob": 2,
+                        "jill": 3
+                    }
+                }
+            },
+            "children": {
+                "random_pet.birds[\"billy\"]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 1,
+                            "prefix": "billy",
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                },
+                "random_pet.birds[\"bob\"]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 2,
+                            "prefix": "bob",
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                },
+                "random_pet.birds[\"jill\"]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 3,
+                            "prefix": "jill",
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                }
+            }
+        },
+        "random_pet.dog": {
+            "change": {
+                "actions": [
+                    "delete",
+                    "create"
+                ],
+                "before": {
+                    "id": "morally-splendid-macaw",
+                    "keepers": null,
+                    "length": 3,
+                    "prefix": null,
+                    "separator": "-"
+                },
+                "after": {
+                    "keepers": null,
+                    "length": 3,
+                    "prefix": null,
+                    "separator": "-"
+                },
+                "after_unknown": {
+                    "id": true
+                }
+            },
+            "config": {
+                "address": "random_pet.dog",
+                "mode": "managed",
+                "type": "random_pet",
+                "name": "dog",
+                "provider_config_key": "random",
+                "expressions": {
+                    "length": {
+                        "references": [
+                            "random_integer.pet_length"
+                        ]
+                    }
+                },
+                "schema_version": 0
+            }
+        },
+        "random_pet.dogs": {
+            "change": {
+                "before": null
+            },
+            "config": {
+                "address": "random_pet.dogs",
+                "mode": "managed",
+                "type": "random_pet",
+                "name": "dogs",
+                "provider_config_key": "random",
+                "expressions": {
+                    "length": {
+                        "references": [
+                            "random_integer.pet_length"
+                        ]
+                    }
+                },
+                "schema_version": 0,
+                "count_expression": {
+                    "constant_value": 3
+                }
+            },
+            "children": {
+                "random_pet.dogs[0]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 3,
+                            "prefix": null,
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                },
+                "random_pet.dogs[1]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 3,
+                            "prefix": null,
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                },
+                "random_pet.dogs[2]": {
+                    "change": {
+                        "actions": [
+                            "create"
+                        ],
+                        "before": null,
+                        "after": {
+                            "keepers": null,
+                            "length": 3,
+                            "prefix": null,
+                            "separator": "-"
+                        },
+                        "after_unknown": {
+                            "id": true
+                        }
+                    },
+                    "config": {
+                        "schema_version": 0
+                    }
+                }
+            }
+        }
+    }
+}
