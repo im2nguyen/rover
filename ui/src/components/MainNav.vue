@@ -1,7 +1,9 @@
 <template>
   <nav class="nav">
     <div class="nav-left">
-      <h2>Rover - Terraform Visualizer</h2>
+      <a class="title" href="https://github.com/im2nguyen/rover">
+        <h2>Rover - Terraform Visualizer</h2>
+      </a>
     </div>
     <div class="nav-right">
       <a class="button outline" @click="saveGraph()">Save Graph</a>
@@ -63,3 +65,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.title {
+  padding: 0;
+}
+</style>

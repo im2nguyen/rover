@@ -12,7 +12,16 @@
           v-if="resourceChange.action"
           >{{ resourceChange.action }}</span
         >
-        <dt class="value resource-id">{{ resource.id }}</dt>
+        <dt class="value resource-id">
+          {{ resource.id }}
+          <button
+            class="copy-button"
+            @click="copyText(resource.id, 'rid')"
+            ref="rid"
+          >
+            Copy
+          </button>
+        </dt>
 
         <!-- <dd class="key">Resource Type</dd>
         <dt class="value">{{ resource.resource_type }}</dt>
@@ -50,11 +59,14 @@ c
           <div v-for="(val, k) in resourceConfig" :key="k" v-else>
             <dd class="key">{{ k }}</dd>
             <dt class="value">
-              <span v-if="val.references">{{ val.references.join(", ") }}</span>
-              <span v-else-if="val.constant_value">{{
-                val.constant_value
-              }}</span>
-              <span v-else>{{ val ? val : "null" }}</span>
+              <span>{{ getConfigValue(val) }}</span>
+              <button
+                class="copy-button"
+                @click="copyText(getConfigValue(val), `${resource.id}-${k}`)"
+                :ref="`${resource.id}-${k}`"
+              >
+                Copy
+              </button>
             </dt>
           </div>
         </div>
@@ -63,7 +75,14 @@ c
           <span v-if="resourceChange.before">
             <div v-for="(val, k) in resourceChange.before" :key="k">
               <dd class="key">{{ k }}</dd>
-              <dt class="value">{{ val ? val : "null" }}</dt>
+              <dt class="value">{{ getBeforeValue(val) }}</dt>
+              <button
+                class="copy-button"
+                @click="copyText(getBeforeValue(val), `${resource.id}-${k}`)"
+                :ref="`${resource.id}-${k}`"
+              >
+                Copy
+              </button>
             </div>
           </span>
           <span v-else>Resource doesn't currently exist.</span>
@@ -80,6 +99,13 @@ c
               :class="{ 'unknown-value': val.unknown }"
             >
               {{ val.unknown ? "Value Unknown" : val }}
+              <button
+                class="copy-button"
+                @click="copyText(getBeforeValue(val), `${resource.id}-${k}`)"
+                :ref="`${resource.id}-${k}`"
+              >
+                Copy
+              </button>
             </dt>
             <dt class="value" v-else>null</dt>
           </div>
@@ -91,6 +117,7 @@ c
 
 <script>
 import axios from "axios";
+import copy from "copy-to-clipboard";
 
 export default {
   name: "ResourceDetail",
@@ -108,6 +135,40 @@ export default {
       if (!this.hasNoState) {
         this.curTab = tab;
       }
+    },
+    copyText(text, ref) {
+      copy(text, {
+        onCopy: this.updateCopyText(ref),
+      });
+    },
+    updateCopyText(ref) {
+      // Use the first element if returns an array
+      if (Array.isArray(this.$refs[ref])) {
+        this.$refs[ref][0].innerText = "Copied";
+        setTimeout(() => {
+          this.$refs[ref][0].innerText = "Copy";
+        }, 1000);
+      } else {
+        this.$refs[ref].innerText = "Copied";
+        setTimeout(() => {
+          this.$refs[ref].innerText = "Copy";
+        }, 1000);
+      }
+    },
+    getConfigValue(val) {
+      if (val.references) {
+        return val.references.join(", ");
+      } else if (val.constant_value) {
+        return val.constant_value;
+      } else {
+        return val ? val : "null";
+      }
+    },
+    getBeforeValue(val) {
+      return val ? val : "null";
+    },
+    getAfterValue(val) {
+      return val ? val : "null";
     },
     getResourceConfig(resourceID, model, isChild) {
       // console.log(`resourceID: ${resourceID}`);
@@ -298,6 +359,10 @@ export default {
       return this.resource.id.startsWith("var.");
     },
     resourceConfig() {
+      if (this.resource.id === "") {
+        return { action: "", before: {} };
+      }
+
       if (!this.isChild) {
         // If it's part of a module
         if (this.resource.id.startsWith("module.")) {
@@ -322,6 +387,10 @@ export default {
       // return this.isChild;
     },
     resourceChange() {
+      if (this.resource.id === "") {
+        return { action: "", before: {} };
+      }
+
       if (!this.isChild) {
         return this.getResourceChange(this.resource.id, this.overview, false);
       }
@@ -412,6 +481,9 @@ dt.value {
   font-size: 1em;
   background-color: #f4ecff;
   color: black;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .resource-id {
@@ -435,5 +507,18 @@ dt.value {
   text-align: center;
   font-weight: bold;
   font-style: italic;
+}
+
+.copy-button {
+  font-size: 0.9em;
+  padding: 1rem;
+  align-items: flex-end;
+  background-color: #8450ba;
+  color: white;
+  font-weight: bold;
+}
+
+.copy-button:hover {
+  cursor: pointer;
 }
 </style>

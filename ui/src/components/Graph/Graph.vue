@@ -223,7 +223,6 @@ const config = {
         "background-color": "#28a745",
         color: "white",
         "font-weight": "bold",
-        border: 0,
       },
     },
     {
@@ -232,7 +231,6 @@ const config = {
         "background-color": "#e40707",
         color: "white",
         "font-weight": "bold",
-        border: 0,
       },
     },
     {
@@ -241,7 +239,6 @@ const config = {
         "background-color": "#1d7ada",
         color: "white",
         "font-weight": "bold",
-        border: 0,
       },
     },
     {
@@ -250,7 +247,6 @@ const config = {
         "background-color": "#ffc107",
         color: "black",
         "font-weight": "bold",
-        border: 0,
       },
     },
     {
@@ -382,8 +378,6 @@ export default {
       // Add click event
       cy.on("click", "node", function (event) {
         var n = event.target;
-
-        console.log(n);
 
         let node = { id: n.data().id, in: [], out: [] };
         const ce = n.connectedEdges();
