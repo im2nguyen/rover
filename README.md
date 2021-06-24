@@ -16,8 +16,8 @@ Feedback (via issues) and pull requests are appreciated!
 
 You can download Rover binary specific to your system by visiting the [Releases page](https://github.com/im2nguyen/rover/releases). Download the binary, unzip, then move `rover` into your `PATH`.
 
-- [rover zip — MacOS](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.0_darwin_amd64.zip)
-- [rover zip — Windows](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.0_windows_amd64.zip)
+- [rover zip — MacOS](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.2_darwin_amd64.zip)
+- [rover zip — Windows](https://github.com/im2nguyen/rover/releases/download/v0.1.0/rover_0.1.2_windows_amd64.zip)
 
 ### Build from source
 
