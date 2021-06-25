@@ -62,8 +62,10 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 
 	rs := make(map[string]*ResourceOverview)
 
-	reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
-	reGetParent := regexp.MustCompile(`^\w+\.\w+`)
+	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
+	// reGetParent := regexp.MustCompile(`^\w+\.\w+`)
+	reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+	reGetParent := regexp.MustCompile(`^\w+\.[\w-]+`)
 
 	// Loop through each resource type and populate graph
 	for _, rc := range plan.Config.RootModule.Resources {
