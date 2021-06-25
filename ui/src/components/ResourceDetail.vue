@@ -326,7 +326,8 @@ export default {
         resourceID = `local.${rArray[lastIndex]}`;
       }
 
-      if (resourceID.match(/^\w+[[]/g) != null) {
+      // If resourceID is a child only (no . in id)
+      if (resourceID.match(/^[\w-]+[[]/g) != null) {
         resourceID = rArray.slice(1).join(".");
         parentID = rArray.slice(1, 4).join(".").split("[")[0];
       }
@@ -353,7 +354,7 @@ export default {
       }
     },
     isChild() {
-      return this.resource.id.match(/^\w+\.\w+[[.]/g) != null;
+      return this.resource.id.match(/^\w+\.[\w-]+[[.]/g) != null;
     },
     hasNoState() {
       return this.resource.id.startsWith("var.");
@@ -419,7 +420,6 @@ export default {
   },
   mounted() {
     axios.get("http://localhost:9000/api/rso").then((response) => {
-      // console.log(response);
       this.overview = response.data;
     });
   },
