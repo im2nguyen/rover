@@ -10,5 +10,3 @@ RUN chmod +x /bin/rover
 WORKDIR /src
 
 ENTRYPOINT [ "/bin/rover" ]
-
-# CMD ["rover"]

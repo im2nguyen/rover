@@ -26,17 +26,38 @@ import (
 //go:embed ui/dist
 var frontend embed.FS
 
+type arrayFlags []string
+
+func (i arrayFlags) String() string {
+	var ts []string
+	for _, el := range i {
+		ts = append(ts, el)
+	}
+	return strings.Join(ts, ",")
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
 func main() {
 	log.Println("Starting Rover...")
 
 	var tfPath, workingDir, name string
+	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
+	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
+	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
 
+	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
+	parsedTfVars := strings.Split(tfVars.String(), ",")
+
 	// Generate assets
-	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath)
+	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath, parsedTfVarsFiles, parsedTfVars)
 
 	// Save to file (debug)
 	// saveJSONToFile(name, "plan", "output", plan)
@@ -99,9 +120,9 @@ func main() {
 
 }
 
-func generateAssets(name string, workingDir string, tfPath string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
+func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
 	// Generate Plan
-	plan, err := generatePlan(name, workingDir, tfPath)
+	plan, err := generatePlan(name, workingDir, tfPath, tfVarsFiles, tfVars)
 	if err != nil {
 		log.Printf(fmt.Sprintf("Unable to parse Plan: %s", err))
 		os.Exit(2)
@@ -130,7 +151,7 @@ func generateAssets(name string, workingDir string, tfPath string) (*tfjson.Plan
 	return plan, rso, mapDM, graph
 }
 
-func generatePlan(name string, workingDir string, tfPath string) (*tfjson.Plan, error) {
+func generatePlan(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string) (*tfjson.Plan, error) {
 	tmpDir, err := ioutil.TempDir("", "rover")
 	if err != nil {
 		return nil, err
@@ -151,7 +172,26 @@ func generatePlan(name string, workingDir string, tfPath string) (*tfjson.Plan, 
 
 	log.Println("Generating plan...")
 	planPath := fmt.Sprintf("%s/%s-%v", tmpDir, "roverplan", time.Now().Unix())
-	_, err = tf.Plan(context.Background(), tfexec.Out(planPath))
+
+	// Create TF Plan options
+	var tfPlanOptions []tfexec.PlanOption
+	tfPlanOptions = append(tfPlanOptions, tfexec.Out(planPath))
+
+	// Add *.tfvars files
+	for _, tfVarsFile := range tfVarsFiles {
+		if tfVarsFile != "" {
+			tfPlanOptions = append(tfPlanOptions, tfexec.VarFile(tfVarsFile))
+		}
+	}
+
+	// Add Terraform variables
+	for _, tfVar := range tfVars {
+		if tfVar != "" {
+			tfPlanOptions = append(tfPlanOptions, tfexec.Var(tfVar))
+		}
+	}
+
+	_, err = tf.Plan(context.Background(), tfPlanOptions...)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Unable to run Plan: %s", err))
 	}

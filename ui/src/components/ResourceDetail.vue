@@ -75,14 +75,16 @@ c
           <span v-if="resourceChange.before">
             <div v-for="(val, k) in resourceChange.before" :key="k">
               <dd class="key">{{ k }}</dd>
-              <dt class="value">{{ getBeforeValue(val) }}</dt>
-              <button
-                class="copy-button"
-                @click="copyText(getBeforeValue(val), `${resource.id}-${k}`)"
-                :ref="`${resource.id}-${k}`"
-              >
-                Copy
-              </button>
+              <dt class="value">
+                {{ getBeforeValue(val) }}
+                <button
+                  class="copy-button"
+                  @click="copyText(getBeforeValue(val), `${resource.id}-${k}`)"
+                  :ref="`${resource.id}-${k}`"
+                >
+                  Copy
+                </button>
+              </dt>
             </div>
           </span>
           <span v-else>Resource doesn't currently exist.</span>
@@ -324,6 +326,10 @@ export default {
 
       if (rArray[lastIndex - 1] == "local") {
         resourceID = `local.${rArray[lastIndex]}`;
+      }
+
+      if (rArray[lastIndex - 1] == "var") {
+        resourceID = `var.${rArray[lastIndex]}`;
       }
 
       // If resourceID is a child only (no . in id)

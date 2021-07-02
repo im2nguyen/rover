@@ -45,6 +45,12 @@ Then, add it as environment variables to your Docker container with `--env-file`
 $ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/rover
 ```
 
+Use `-tfVarsFile` or `-tfVar` to define variables. For example, you can run the following in the `example/random-test` directory to overload variables.
+
+```
+$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -tfVarsFile test.tfvars -tfVar max_length=4
+```
+
 ## Installation
 
 You can download Rover binary specific to your system by visiting the [Releases page](https://github.com/im2nguyen/rover/releases). Download the binary, unzip, then move `rover` into your `PATH`.
@@ -101,7 +107,7 @@ $ env GOOS=linux GOARCH=amd64 go build .
 Then, build the Docker image.
 
 ```
-$ docker build . -t im2nguyen/rover
+$ docker build . -t im2nguyen/rover --no-cache
 ```
 
 
