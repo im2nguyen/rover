@@ -12,6 +12,39 @@ Feedback (via issues) and pull requests are appreciated!
 
 ![Rover Screenshot](docs/rover-cropped-screenshot.png)
 
+## Quickstart
+
+The fastest way to get up and running with Rover is through Docker.
+
+Run the following command in any Terraform workspace to generate a visualization. This command copies all the files in your current directory to the Rover container and exposes port `:9000`.
+
+```
+$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover
+2021/07/02 06:46:23 Starting Rover...
+2021/07/02 06:46:23 Initializing Terraform...
+2021/07/02 06:46:24 Generating plan...
+2021/07/02 06:46:25 Parsing configuration...
+2021/07/02 06:46:25 Generating resource overview...
+2021/07/02 06:46:25 Generating resource map...
+2021/07/02 06:46:25 Generating resource graph...
+2021/07/02 06:46:25 Done generating assets.
+2021/07/02 06:46:25 Rover is running on localhost:9000
+```
+
+Once Rover runs on `localhost:9000`, navigate to it to find the visualization!
+
+Use `--env` or `--env-file` to set environment variables in the Docker container. For example, you can save your AWS credentials to an `.env` file.
+
+```
+$ printenv | grep "AWS" > .env
+```
+
+Then, add it as environment variables to your Docker container with `--env-file`.
+
+```
+$ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/rover
+```
+
 ## Installation
 
 You can download Rover binary specific to your system by visiting the [Releases page](https://github.com/im2nguyen/rover/releases). Download the binary, unzip, then move `rover` into your `PATH`.
@@ -56,6 +89,21 @@ Compile and install the binary. Alternatively, you can use `go build` and move t
 ```
 $ go install
 ```
+
+### Build Docker image
+
+First, compile the binary for `linux/amd64`.
+
+```
+$ env GOOS=linux GOARCH=amd64 go build .
+```
+
+Then, build the Docker image.
+
+```
+$ docker build . -t im2nguyen/rover
+```
+
 
 ## Basic usage
 

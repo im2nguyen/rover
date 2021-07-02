@@ -16,6 +16,7 @@
     "file-saver": "^2.0.5",
     "vue": "^2.6.11",
     "vue-cytoscape": "^1.0.8",
+    "vue-meta": "^2.4.0",
     "vuex": "^3.6.2"
   },
   "devDependencies": {

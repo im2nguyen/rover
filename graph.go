@@ -380,6 +380,14 @@ func GenerateEdges(plan *tfjson.Plan) []Edge {
 						targetType = DATA_COLOR
 					}
 
+					// For Terraform 1.0, resource references point to specific resource attributes
+					// Skip if the target is a resource and reference points to an attribute
+					if targetType == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
+						continue
+					} else if targetType == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
+						continue
+					}
+
 					id := fmt.Sprintf("%s->%s", resource.Address, dependsOnR)
 					emo = append(emo, id)
 					edgeMap[id] = Edge{
@@ -417,6 +425,14 @@ func GenerateEdges(plan *tfjson.Plan) []Edge {
 						targetType = MODULE_COLOR
 					} else if strings.HasPrefix(dependsOnR, "data.") {
 						targetType = DATA_COLOR
+					}
+
+					// For Terraform 1.0, resource references point to specific resource attributes
+					// Skip if the target is a resource and reference points to an attribute
+					if targetType == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
+						continue
+					} else if targetType == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
+						continue
 					}
 
 					id := fmt.Sprintf("%s->%s", fmt.Sprintf("module.%s", mid), dependsOnR)

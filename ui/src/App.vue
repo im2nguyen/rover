@@ -57,6 +57,9 @@ import Explorer from "@/components/Explorer.vue";
 
 export default {
   name: "App",
+  metaInfo: {
+    title: "Rover | Terraform Visualization",
+  },
   components: {
     MainNav,
     Graph,
