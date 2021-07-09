@@ -34,9 +34,17 @@ export default {
     },
   },
   mounted() {
-    axios.get("http://localhost:9000/api/map").then((response) => {
-      this.map = response.data;
-    });
+    // if map.js file is present (standalone mode)
+    // eslint-disable-next-line no-undef
+    if (typeof map !== "undefined") {
+      // eslint-disable-next-line no-undef
+      this.map = map;
+      console.log(this.map);
+    } else {
+      axios.get("http://localhost:9000/api/map").then((response) => {
+        this.map = response.data;
+      });
+    }
   },
 };
 </script>
