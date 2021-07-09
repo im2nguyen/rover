@@ -33,6 +33,18 @@ $ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover
 
 Once Rover runs on `localhost:9000`, navigate to it to find the visualization!
 
+## Standalone mode
+
+Standalone mode generates a `rover.zip` file containing all the static assets.
+
+```
+$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -standalone true
+```
+
+After all the assets are generated, unzip `rover.zip` and open `rover/index.html` in your favorite web browser.
+
+## Set environment variables
+
 Use `--env` or `--env-file` to set environment variables in the Docker container. For example, you can save your AWS credentials to an `.env` file.
 
 ```
@@ -44,6 +56,8 @@ Then, add it as environment variables to your Docker container with `--env-file`
 ```
 $ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/rover
 ```
+
+## Define tfvars and Terraform variables
 
 Use `-tfVarsFile` or `-tfVar` to define variables. For example, you can run the following in the `example/random-test` directory to overload variables.
 

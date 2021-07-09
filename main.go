@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/fs"
 	"io/ioutil"
 	"log"
@@ -44,11 +42,14 @@ func (i *arrayFlags) Set(value string) error {
 func main() {
 	log.Println("Starting Rover...")
 
-	var tfPath, workingDir, name string
+	var tfPath, workingDir, name, zipFileName string
+	var standalone bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
+	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
+	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
@@ -58,6 +59,7 @@ func main() {
 
 	// Generate assets
 	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath, parsedTfVarsFiles, parsedTfVars)
+	log.Println("Done generating assets.")
 
 	// Save to file (debug)
 	// saveJSONToFile(name, "plan", "output", plan)
@@ -66,58 +68,29 @@ func main() {
 	// saveJSONToFile(name, "graph", "output", graph)
 
 	// Embed frontend
-	stripped, err := fs.Sub(frontend, "ui/dist")
+	fe, err := fs.Sub(frontend, "ui/dist")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	frontendFS := http.FileServer(http.FS(stripped))
+	frontendFS := http.FileServer(http.FS(fe))
 
-	http.Handle("/", frontendFS)
-	http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		fileType := strings.Replace(r.URL.Path, "/api/", "", 1)
-
-		var j []byte
-		var err error
-
-		enableCors(&w)
-
-		switch fileType {
-		case "plan":
-			j, err = json.Marshal(plan)
-			if err != nil {
-				io.WriteString(w, fmt.Sprintf("Error producing JSON: %s\n", err))
-			}
-		case "rso":
-			j, err = json.Marshal(rso)
-			if err != nil {
-				io.WriteString(w, fmt.Sprintf("Error producing JSON: %s\n", err))
-			}
-		case "map":
-			j, err = json.Marshal(mapDM)
-			if err != nil {
-				io.WriteString(w, fmt.Sprintf("Error producing JSON: %s\n", err))
-			}
-		case "graph":
-			j, err = json.Marshal(graph)
-			if err != nil {
-				io.WriteString(w, fmt.Sprintf("Error producing JSON: %s\n", err))
-			}
-		default:
-			io.WriteString(w, "Please enter a valid file type: plan, rso, map, graph\n")
+	if standalone {
+		err = generateZip(fe,
+			fmt.Sprintf("%s.zip", zipFileName),
+			plan, rso, mapDM, graph,
+		)
+		if err != nil {
+			log.Fatalln(err)
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		io.Copy(w, bytes.NewReader(j))
-	})
+		log.Printf("Generated zip file: %s.zip\n", zipFileName)
+		return
+	}
 
-	log.Println("Done generating assets.")
-	log.Println("Rover is running on localhost:9000")
-
-	err = http.ListenAndServe(":9000", nil)
+	err = startServer(frontendFS, plan, rso, mapDM, graph)
 	if err != nil {
 		log.Fatalf("Could not start server: %s\n", err.Error())
 	}
-
 }
 
 func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
@@ -234,17 +207,15 @@ func saveJSONToFile(prefix string, fileType string, path string, j interface{}) 
 	}
 
 	f, err := os.Create(fmt.Sprintf("%s/%s-%s.json", newpath, prefix, fileType))
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer f.Close()
 
-	_, err2 := f.WriteString(string(b))
-
-	if err2 != nil {
-		log.Fatal(err2)
+	_, err = f.WriteString(string(b))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// log.Printf("Saved to %s", fmt.Sprintf("%s/%s-%s.json", newpath, prefix, fileType))

@@ -425,9 +425,16 @@ export default {
     },
   },
   mounted() {
-    axios.get("http://localhost:9000/api/rso").then((response) => {
-      this.overview = response.data;
-    });
+    // if rso.js file is present (standalone mode)
+    // eslint-disable-next-line no-undef
+    if (typeof rso !== "undefined") {
+      // eslint-disable-next-line no-undef
+      this.overview = rso;
+    } else {
+      axios.get("http://localhost:9000/api/rso").then((response) => {
+        this.overview = response.data;
+      });
+    }
   },
 };
 </script>

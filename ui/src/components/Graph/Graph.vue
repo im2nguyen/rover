@@ -489,10 +489,18 @@ export default {
     },
   },
   mounted() {
-    axios.get("http://localhost:9000/api/graph").then((response) => {
-      this.graph = response.data;
+    // if graph.js file is present (standalone mode)
+    // eslint-disable-next-line no-undef
+    if (typeof graph !== "undefined") {
+      // eslint-disable-next-line no-undef
+      this.graph = graph;
       this.renderGraph();
-    });
+    } else {
+      axios.get("http://localhost:9000/api/graph").then((response) => {
+        this.graph = response.data;
+        this.renderGraph();
+      });
+    }
   },
 };
 </script>
