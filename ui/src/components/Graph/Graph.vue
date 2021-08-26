@@ -319,6 +319,9 @@ export default {
       let vm = this;
       let cy = this.$refs.cy.instance;
       let el = cy.elements();
+      const nodesNames = this.graph.nodes.map(
+        x => x.data.id
+      )
 
       // Reset graph
       cy.remove(el);
@@ -333,6 +336,23 @@ export default {
         if (n.data.id.includes("-variable") || n.data.id.includes("-output")) {
           return;
         }
+
+        // Browse node ancestors if target is not found in nodes
+        // e.g: resource.test.attribute will not be in nodes, as attributes are not exported
+        // this ensures that the dependency will be made on resource.test instead
+        let name = n.data.target
+        while (!nodesNames.includes(name)) {
+          name = name.split('.')
+          if (name.length < 2) {
+            console.warn("edge target", n.data.target, "not found in nodes")
+            return
+          }
+          name.pop()
+          name = name.join('.')
+        }
+        n.data.target = name
+
+        // Add edge to the final graph
         cy.add(n);
       });
 
