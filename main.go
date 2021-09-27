@@ -52,7 +52,7 @@ func main() {
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
-	flag.StringVar(&planFileName, "planFileName", "rover", "Plan file name")
+	flag.StringVar(&planFileName, "planFileName", "plan.out", "Plan file name")
 	flag.Parse()
 
 	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
@@ -141,7 +141,18 @@ func getPlan(workingDir string, tfPath string, planFileName string) (*tfjson.Pla
 		return nil, err
 	}
 
+	log.Println("Initializing Terraform...")
+	// err = tf.Init(context.Background(), tfexec.Upgrade(true), tfexec.LockTimeout("60s"))
+	err = tf.Init(context.Background(), tfexec.Upgrade(true))
+	if err != nil {
+		return nil, err
+	}
+
 	plan, err := tf.ShowPlanFile(context.Background(), planFileName)
+
+	if err != nil {
+		log.Printf(fmt.Sprintf("Unable to show Plan (%s): %s", planFileName, err))
+	}
 
 	return plan, err
 }
