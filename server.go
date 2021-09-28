@@ -12,7 +12,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-func startServer(frontendFS http.Handler, plan *tfjson.Plan, rso *ResourcesOverview, mapDM *Map, graph Graph) error {
+func startServer(ipPort string, frontendFS http.Handler, plan *tfjson.Plan, rso *ResourcesOverview, mapDM *Map, graph Graph) error {
 	http.Handle("/", frontendFS)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		// simple healthcheck
@@ -58,7 +58,7 @@ func startServer(frontendFS http.Handler, plan *tfjson.Plan, rso *ResourcesOverv
 		io.Copy(w, bytes.NewReader(j))
 	})
 
-	log.Println("Rover is running on localhost:9000")
+	log.Printf("Rover is running on %s", ipPort)
 
-	return http.ListenAndServe(":9000", nil)
+	return http.ListenAndServe(ipPort, nil)
 }

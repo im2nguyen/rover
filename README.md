@@ -6,7 +6,7 @@ In order to do this, Rover:
 
 1. generates a [`plan`](https://www.terraform.io/docs/cli/commands/plan.html#out-filename) file and parses the configuration in the root directory.
 1. parses the `plan` and configuration files to generate three items: the resource overview (`rso`), the resource map (`map`), and the resource graph (`graph`).
-1. consumes the `rso`, `map`, and `graph` to generate an interactive configuration and state visualization hosts on `localhost:9000`.
+1. consumes the `rso`, `map`, and `graph` to generate an interactive configuration and state visualization hosts on `0.0.0.0:9000`.
 
 Feedback (via issues) and pull requests are appreciated! 
 
@@ -28,10 +28,10 @@ $ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover
 2021/07/02 06:46:25 Generating resource map...
 2021/07/02 06:46:25 Generating resource graph...
 2021/07/02 06:46:25 Done generating assets.
-2021/07/02 06:46:25 Rover is running on localhost:9000
+2021/07/02 06:46:25 Rover is running on 0.0.0.0:9000
 ```
 
-Once Rover runs on `localhost:9000`, navigate to it to find the visualization!
+Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
 
 ### Standalone mode
 
@@ -147,7 +147,7 @@ $ rover
 2021/06/23 22:51:28 Generating resource map...
 2021/06/23 22:51:28 Generating resource graph...
 2021/06/23 22:51:28 Done generating assets.
-2021/06/23 22:51:28 Rover is running on localhost:9000
+2021/06/23 22:51:28 Rover is running on 0.0.0.0:9000
 ```
 
 You can specify the working directory (where your configuration is living) and the Terraform binary location using flags.
@@ -156,4 +156,4 @@ You can specify the working directory (where your configuration is living) and t
 $ rover -workingDir "example/eks-cluster" -tfPath "/Users/dos/terraform"
 ```
 
-Once Rover runs on `localhost:9000`, navigate to it to find the visualization!
+Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
