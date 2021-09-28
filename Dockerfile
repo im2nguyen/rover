@@ -39,4 +39,4 @@ RUN chmod +x /bin/rover
 WORKDIR /src
 COPY --from=ui /src/ui/dist ./src/ui/dist
 
-# ENTRYPOINT [ "/bin/rover" ]
+ENTRYPOINT [ "/bin/rover" ]
