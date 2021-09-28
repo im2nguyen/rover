@@ -167,8 +167,6 @@ func (r *rover) generateAssets() error {
 		return err
 	}
 
-	// Generate Graph
-	log.Println("Generating resource graph...")
 	err = r.GenerateGraph()
 	if err != nil {
 		return err

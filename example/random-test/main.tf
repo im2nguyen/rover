@@ -37,6 +37,10 @@ resource "random_pet" "dogs" {
   length = random_integer.pet_length.result
 }
 
+resource "random_pet" "cow" {
+  length = random_integer.pet_length.result
+}
+
 module "random_cat" {
   source = "./random-name"
 
@@ -47,6 +51,11 @@ output "random_cat_name" {
   description = "random_cat_name"
   value = module.random_cat.random_name
   sensitive = true
+}
+
+output "random_cow_name" {
+  description = "random_cow_name"
+  value = random_pet.cow.id
 }
 
 resource "random_pet" "birds" {

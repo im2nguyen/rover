@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"fmt"
 	"strings"
 	// tfjson "github.com/hashicorp/terraform-json"
@@ -55,6 +56,8 @@ type EdgeData struct {
 
 // GenerateGraph -
 func (r *rover) GenerateGraph() error {
+	log.Println("Generating resource graph...")
+
 	nodes := r.GenerateNodes()
 	edges := r.GenerateEdges()
 
@@ -327,6 +330,12 @@ func (r *rover) GenerateEdges() []Edge {
 						id := strings.Split(dependsOnR, ".")
 						dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
 					}
+
+					// if the dependency is an attribute, skip
+					if (len(strings.Split(dependsOnR, ".")) > 2) {
+						continue
+					}
+
 					id := fmt.Sprintf("%s->%s", oid, dependsOnR)
 
 					targetType := RESOURCE_COLOR
