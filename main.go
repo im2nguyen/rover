@@ -42,13 +42,14 @@ func (i *arrayFlags) Set(value string) error {
 func main() {
 	log.Println("Starting Rover...")
 
-	var tfPath, workingDir, name, zipFileName, planFileName string
+	var tfPath, workingDir, name, zipFileName, ipPort, planFileName string
 	var standalone bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
+	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
@@ -88,7 +89,7 @@ func main() {
 		return
 	}
 
-	err = startServer(frontendFS, plan, rso, mapDM, graph)
+	err = startServer(ipPort, frontendFS, plan, rso, mapDM, graph)
 	if err != nil {
 		log.Fatalf("Could not start server: %s\n", err.Error())
 	}
