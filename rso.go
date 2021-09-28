@@ -12,13 +12,13 @@ import (
 // ResourcesOverview represents the root module
 type ResourcesOverview struct {
 	Variables map[string]*VariableOverview `json:"variables,omitempty"`
-	Outputs   map[string]*OutputOverview      `json:"output,omitempty"`
-	Resources map[string]*ResourceOverview    `json:"resources,omitempty"`
+	Outputs   map[string]*OutputOverview   `json:"output,omitempty"`
+	Resources map[string]*ResourceOverview `json:"resources,omitempty"`
 }
 
 type VariableOverview struct {
-	Value interface{} `json:"value,omitempty"`
-	Sensitive *bool `json:"sensitive,omitempty"`
+	Value     interface{} `json:"value,omitempty"`
+	Sensitive *bool       `json:"sensitive,omitempty"`
 }
 
 // ResourceOverview is a modified tfjson.Plan
@@ -60,7 +60,7 @@ func (r *rover) GenerateResourceOverview() error {
 	// If variable is sensitive and show sensitive is off, replace value with "Sensitive Value"
 	for varName, variable := range r.Plan.Config.RootModule.Variables {
 		vars[varName].Sensitive = &variable.Sensitive
-		
+
 		if !r.ShowSensitive && variable.Sensitive {
 			vars[varName].Value = "Sensitive Value"
 		}
@@ -86,10 +86,10 @@ func (r *rover) GenerateResourceOverview() error {
 		if !r.ShowSensitive {
 			if output.BeforeSensitive.(bool) {
 				output.Before = "Sensitive Value"
-			} 
+			}
 			if output.AfterSensitive.(bool) {
 				output.After = "Sensitive Value"
-			} 
+			}
 		}
 
 		oo[outputName].Change = output

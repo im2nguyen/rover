@@ -55,12 +55,29 @@ type EdgeData struct {
 
 // GenerateGraph -
 func (r *rover) GenerateGraph() error {
-	n := r.GenerateNodes()
-	e := r.GenerateEdges()
+	nodes := r.GenerateNodes()
+	edges := r.GenerateEdges()
+
+	// Edge case for terraform.workspace
+	for _, e := range edges {
+		if strings.Contains(e.Data.ID, "terraform.workspace") {
+			nodes = append(nodes, Node{
+				Data: NodeData{
+					ID:    "terraform.workspace",
+					Label: "terraform.workspace",
+					Type:  "locals",
+					// Parent is equal to basePath
+					Parent: strings.ReplaceAll(r.Map.Path, "./", ""),
+				},
+				Classes: "locals",
+			})
+			break;
+		}
+	}
 
 	r.Graph = Graph{
-		Nodes: n,
-		Edges: e,
+		Nodes: nodes,
+		Edges: edges,
 	}
 
 	return nil

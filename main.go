@@ -46,6 +46,7 @@ type rover struct {
 	TfVarsFiles    []string
 	TfVars         []string
 	PlanPath       string
+	WorkspaceName  string
 	TFConfigExists bool
 	ShowSensitive  bool
 	Config         *tfconfig.Module
@@ -58,7 +59,7 @@ type rover struct {
 func main() {
 	log.Println("Starting Rover...")
 
-	var tfPath, workingDir, name, zipFileName, ipPort, planPath string
+	var tfPath, workingDir, name, zipFileName, ipPort, planPath, workspaceName string
 	var standalone, tfConfigExists, showSensitive bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
@@ -67,6 +68,7 @@ func main() {
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
 	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
 	flag.StringVar(&planPath, "planPath", "", "Plan file path")
+	flag.StringVar(&workspaceName, "workspaceName", "", "Workspace name")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
 	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
@@ -97,6 +99,7 @@ func main() {
 		ShowSensitive:  showSensitive,
 		TfVarsFiles:    parsedTfVarsFiles,
 		TfVars:         parsedTfVars,
+		WorkspaceName:  workspaceName,
 	}
 
 	// Generate assets
@@ -202,6 +205,14 @@ func (r *rover) getPlan() error {
 	err = tf.Init(context.Background(), tfexec.Upgrade(true))
 	if err != nil {
 		return errors.New(fmt.Sprintf("Unable to initialize Terraform Plan: %s", err))
+	}
+
+	if r.WorkspaceName != "" {
+		log.Printf("Running in %s workspace...", r.WorkspaceName)
+		err = tf.WorkspaceSelect(context.Background(), r.WorkspaceName)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to select workspace (%s): %s", r.WorkspaceName, err))
+		}
 	}
 
 	log.Println("Generating plan...")
