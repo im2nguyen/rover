@@ -11,6 +11,7 @@ provider "random" {}
 
 variable "max_length" {
   default = 5
+  sensitive = false
 }
 
 resource "random_integer" "pet_length" {
@@ -45,6 +46,7 @@ module "random_cat" {
 output "random_cat_name" {
   description = "random_cat_name"
   value = module.random_cat.random_name
+  sensitive = true
 }
 
 resource "random_pet" "birds" {

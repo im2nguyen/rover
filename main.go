@@ -47,6 +47,7 @@ type rover struct {
 	TfVars         []string
 	PlanPath       string
 	TFConfigExists bool
+	ShowSensitive  bool
 	Config         *tfconfig.Module
 	Plan           *tfjson.Plan
 	RSO            *ResourcesOverview
@@ -58,7 +59,7 @@ func main() {
 	log.Println("Starting Rover...")
 
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath string
-	var standalone, tfConfigExists bool
+	var standalone, tfConfigExists, showSensitive bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
@@ -68,6 +69,7 @@ func main() {
 	flag.StringVar(&planPath, "planPath", "", "Plan file path")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
+	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
@@ -92,6 +94,7 @@ func main() {
 		TfPath:         tfPath,
 		PlanPath:       planPath,
 		TFConfigExists: tfConfigExists,
+		ShowSensitive:  showSensitive,
 		TfVarsFiles:    parsedTfVarsFiles,
 		TfVars:         parsedTfVars,
 	}

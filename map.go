@@ -108,14 +108,13 @@ func (r *rover) GenerateMap() error {
 			files[variable.Pos.Filename] = make(map[string]*Resource)
 		}
 
-
 		id := fmt.Sprintf("var.%s", variable.Name)
 
 		files[variable.Pos.Filename][id] = &Resource{
-			Type:      ResourceTypeVariable,
-			Name:      variable.Name,
-			Required:  &variable.Required,
-			Line:      &variable.Pos.Line,
+			Type:     ResourceTypeVariable,
+			Name:     variable.Name,
+			Required: &variable.Required,
+			Line:     &variable.Pos.Line,
 		}
 
 		// Get variable sensitivity
@@ -316,7 +315,7 @@ func (r *rover) GenerateMap() error {
 
 func (r *rover) GenerateMapNoConfig() error {
 	mapObj := &Map{
-		Path:              "Rover Visualization",
+		Path:    "Rover Visualization",
 		Modules: make(map[string]*tfconfig.ModuleCall),
 	}
 
@@ -332,8 +331,8 @@ func (r *rover) GenerateMapNoConfig() error {
 		id := fmt.Sprintf("var.%s", varName)
 
 		files[DefaultFileName][id] = &Resource{
-			Type: ResourceTypeVariable,
-			Name: varName,
+			Type:      ResourceTypeVariable,
+			Name:      varName,
 			Sensitive: variable.Sensitive,
 		}
 	}
@@ -347,8 +346,8 @@ func (r *rover) GenerateMapNoConfig() error {
 		id := fmt.Sprintf("output.%s", outputName)
 
 		oo := &Resource{
-			Type: ResourceTypeOutput,
-			Name: outputName,
+			Type:      ResourceTypeOutput,
+			Name:      outputName,
 			Sensitive: output.Sensitive,
 		}
 
@@ -432,9 +431,9 @@ func (r *rover) GenerateMapNoConfig() error {
 		id := fmt.Sprintf("module.%s", modName)
 
 		m := &Resource{
-			Type:    ResourceTypeModule,
-			Name:    modName,
-			Source:  mc.Source,
+			Type:   ResourceTypeModule,
+			Name:   modName,
+			Source: mc.Source,
 		}
 
 		m.Children = make(map[string]*Resource)
