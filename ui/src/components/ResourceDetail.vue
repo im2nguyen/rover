@@ -316,12 +316,26 @@ export default {
   },
   computed: {
     resource() {
-      const resource = this.resourceID.split("/").slice(-2).join(".");
+      let resource = "";
+
+      // If no config version...
+      if (this.resourceID.startsWith("Resources/")) {
+        resource = this.resourceID.split("/").join(".");
+      } else {
+        resource = this.resourceID.split("/").slice(-2).join(".");
+      }
+
       const rArray = resource.split(".");
       const lastIndex = rArray.length - 1;
 
       let resourceID = rArray.slice(2).join(".");
       let parentID = rArray.slice(2, 4).join(".").split("[")[0];
+
+      // If no config version..
+      if (this.resourceID.startsWith("Resources/")) {
+        resourceID = rArray.slice(1).join(".");
+        parentID = rArray.slice(1, 4).join(".").split("[")[0];
+      }
 
       if (
         rArray[lastIndex - 1] == "output" &&
@@ -437,7 +451,7 @@ export default {
       // eslint-disable-next-line no-undef
       this.overview = rso;
     } else {
-      axios.get(`/api/rso`).then((response) => {
+      axios.get(`http://localhost:9000/api/rso`).then((response) => {
         this.overview = response.data;
       });
     }

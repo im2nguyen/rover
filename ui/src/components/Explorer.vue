@@ -39,9 +39,8 @@ export default {
     if (typeof map !== "undefined") {
       // eslint-disable-next-line no-undef
       this.map = map;
-      console.log(this.map);
     } else {
-      axios.get(`/api/map`).then((response) => {
+      axios.get(`http://localhost:9000/api/map`).then((response) => {
         this.map = response.data;
       });
     }
