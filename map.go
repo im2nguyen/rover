@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
@@ -50,16 +51,6 @@ type Map struct {
 	Files map[string]map[string]*Resource `json:"files,omitempty"`
 }
 
-// FileContent represents the content within each file
-// type FileContent struct {
-// 	Path             string                 `json:"path"`
-// 	Variables        map[string]*Variable   `json:"variables,omitempty"`
-// 	Outputs          map[string]*Output     `json:"outputs,omitempty"`
-// 	ManagedResources map[string]*Resource   `json:"managed_resources,omitempty"`
-// 	DataResources    map[string]*Resource   `json:"data_resources,omitempty"`
-// 	ModuleCalls      map[string]*ModuleCall `json:"module_calls,omitempty"`
-// }
-
 // Resource is a modified tfconfig.Resource
 type Resource struct {
 	Type ResourceType `json:"type"`
@@ -91,11 +82,13 @@ type ModuleCall struct {
 
 // Generates Map - Overview of files and their resources
 // Groups different resource types together
-func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
+func (r *rover) GenerateMap() error {
+	log.Println("Generating resource map...")
+
 	mapObj := &Map{
-		Path:              config.Path,
-		RequiredProviders: config.RequiredProviders,
-		RequiredCore:      config.RequiredCore,
+		Path:              r.Config.Path,
+		RequiredProviders: r.Config.RequiredProviders,
+		RequiredCore:      r.Config.RequiredCore,
 		// ProviderConfigs:   module.ProviderConfigs,
 		Modules: make(map[string]*tfconfig.ModuleCall),
 	}
@@ -103,7 +96,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 	files := make(map[string]map[string]*Resource)
 
 	// Loop through each resource type and populate graph
-	for _, variable := range config.Variables {
+	for _, variable := range r.Config.Variables {
 		// Populate with file if doesn't exist
 		if _, ok := files[variable.Pos.Filename]; !ok {
 			files[variable.Pos.Filename] = make(map[string]*Resource)
@@ -119,7 +112,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 		}
 	}
 
-	for _, output := range config.Outputs {
+	for _, output := range r.Config.Outputs {
 		// Populate with file if doesn't exist
 		if _, ok := files[output.Pos.Filename]; !ok {
 			files[output.Pos.Filename] = make(map[string]*Resource)
@@ -134,12 +127,12 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 			Line:      output.Pos.Line,
 		}
 
-		if _, ok := rso.Outputs[output.Name]; ok {
-			if rso.Outputs[output.Name].Change != nil {
-				if rso.Outputs[output.Name].Change.Actions != nil {
-					oo.ChangeAction = Action(string(rso.Outputs[output.Name].Change.Actions[0]))
+		if _, ok := r.RSO.Outputs[output.Name]; ok {
+			if r.RSO.Outputs[output.Name].Change != nil {
+				if r.RSO.Outputs[output.Name].Change.Actions != nil {
+					oo.ChangeAction = Action(string(r.RSO.Outputs[output.Name].Change.Actions[0]))
 
-					if len(rso.Outputs[output.Name].Change.Actions) > 1 {
+					if len(r.RSO.Outputs[output.Name].Change.Actions) > 1 {
 						oo.ChangeAction = ActionReplace
 					}
 				}
@@ -149,7 +142,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 		files[output.Pos.Filename][id] = oo
 	}
 
-	for _, resource := range config.ManagedResources {
+	for _, resource := range r.Config.ManagedResources {
 		// Populate with file if doesn't exist
 		if _, ok := files[resource.Pos.Filename]; !ok {
 			files[resource.Pos.Filename] = make(map[string]*Resource)
@@ -157,7 +150,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 
 		id := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 
-		r := &Resource{
+		re := &Resource{
 			Type:         ResourceTypeResource,
 			Name:         resource.Name,
 			ResourceType: resource.Type,
@@ -165,18 +158,18 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 			Line:         resource.Pos.Line,
 		}
 
-		if _, ok := rso.Resources[id]; ok {
-			if rso.Resources[id].Change.Actions != nil {
-				r.ChangeAction = Action(string(rso.Resources[id].Change.Actions[0]))
+		if _, ok := r.RSO.Resources[id]; ok {
+			if r.RSO.Resources[id].Change.Actions != nil {
+				re.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
 
-				if len(rso.Resources[id].Change.Actions) > 1 {
-					r.ChangeAction = ActionReplace
+				if len(r.RSO.Resources[id].Change.Actions) > 1 {
+					re.ChangeAction = ActionReplace
 				}
 			}
 
-			for crName, cr := range rso.Resources[id].Children {
-				if r.Children == nil {
-					r.Children = make(map[string]*Resource)
+			for crName, cr := range r.RSO.Resources[id].Children {
+				if re.Children == nil {
+					re.Children = make(map[string]*Resource)
 				}
 
 				tcr := &Resource{
@@ -192,15 +185,14 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 					}
 				}
 
-				r.Children[crName] = tcr
+				re.Children[crName] = tcr
 			}
 		}
 
-		files[resource.Pos.Filename][id] = r
-
+		files[resource.Pos.Filename][id] = re
 	}
 
-	for _, data := range config.DataResources {
+	for _, data := range r.Config.DataResources {
 		// Populate with file if doesn't exist
 		if _, ok := files[data.Pos.Filename]; !ok {
 			files[data.Pos.Filename] = make(map[string]*Resource)
@@ -216,16 +208,16 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 			Line:         data.Pos.Line,
 		}
 
-		if rso.Resources[id].Change.Actions != nil {
-			files[data.Pos.Filename][id].ChangeAction = Action(string(rso.Resources[id].Change.Actions[0]))
+		if r.RSO.Resources[id].Change.Actions != nil {
+			files[data.Pos.Filename][id].ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
 
-			if len(rso.Resources[id].Change.Actions) > 1 {
+			if len(r.RSO.Resources[id].Change.Actions) > 1 {
 				files[data.Pos.Filename][id].ChangeAction = ActionReplace
 			}
 		}
 	}
 
-	for _, mc := range config.ModuleCalls {
+	for _, mc := range r.Config.ModuleCalls {
 		// Populate with file if doesn't exist
 		if _, ok := files[mc.Pos.Filename]; !ok {
 			files[mc.Pos.Filename] = make(map[string]*Resource)
@@ -248,11 +240,11 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 
 		m.Children = make(map[string]*Resource)
 
-		if _, ok := rso.Resources[id]; ok {
+		if _, ok := r.RSO.Resources[id]; ok {
 			tempChildren := make(map[string]*Resource)
 
 			// Filter through and add configuration
-			for _, cr := range rso.Resources[id].ModuleConfig.Module.Resources {
+			for _, cr := range r.RSO.Resources[id].ModuleConfig.Module.Resources {
 				crName := fmt.Sprintf("%s.%s", id, cr.Address)
 
 				tcr := &Resource{
@@ -268,7 +260,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 				tempChildren[crName] = tcr
 			}
 			// Filter through and add change action
-			for crName, cr := range rso.Resources[id].Children {
+			for crName, cr := range r.RSO.Resources[id].Children {
 				tcr := tempChildren[crName]
 
 				if tcr == nil {
@@ -305,5 +297,7 @@ func GenerateMap(config *tfconfig.Module, rso *ResourcesOverview) *Map {
 
 	mapObj.Files = files
 
-	return mapObj
+	r.Map = mapObj
+
+	return nil
 }

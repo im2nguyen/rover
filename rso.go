@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -36,22 +37,24 @@ type OutputOverview struct {
 
 // GenerateResourceOverview - Overview of files and their resources
 // Groups different resource types together
-func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
+func (r *rover) GenerateResourceOverview() error {
+	log.Println("Generating resource overview...")
+
 	rso := &ResourcesOverview{}
 
-	rso.Variables = plan.Variables
+	rso.Variables = r.Plan.Variables
 
 	// Loop through outputs
 	oo := make(map[string]*OutputOverview)
 	// Loop through output configs
-	for outputName, output := range plan.Config.RootModule.Outputs {
+	for outputName, output := range r.Plan.Config.RootModule.Outputs {
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
 		}
 		oo[outputName].Config = output
 	}
 	// Loop through output changes
-	for outputName, output := range plan.OutputChanges {
+	for outputName, output := range r.Plan.OutputChanges {
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
 		}
@@ -68,7 +71,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	reGetParent := regexp.MustCompile(`^\w+\.[\w-]+`)
 
 	// Loop through each resource type and populate graph
-	for _, rc := range plan.Config.RootModule.Resources {
+	for _, rc := range r.Plan.Config.RootModule.Resources {
 		if _, ok := rs[rc.Address]; !ok {
 			rs[rc.Address] = &ResourceOverview{}
 		}
@@ -78,7 +81,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Add modules
-	for moduleName, m := range plan.Config.RootModule.ModuleCalls {
+	for moduleName, m := range r.Plan.Config.RootModule.ModuleCalls {
 		mn := fmt.Sprintf("module.%s", moduleName)
 
 		if _, ok := rs[mn]; !ok {
@@ -89,7 +92,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Loop through resource changes
-	for _, rc := range plan.ResourceChanges {
+	for _, rc := range r.Plan.ResourceChanges {
 		id := rc.Address
 		var parent string
 
@@ -128,10 +131,10 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Populate prior state
-	if plan.PriorState != nil {
-		if plan.PriorState.Values != nil {
-			if plan.PriorState.Values.RootModule != nil {
-				for _, rst := range plan.PriorState.Values.RootModule.Resources {
+	if r.Plan.PriorState != nil {
+		if r.Plan.PriorState.Values != nil {
+			if r.Plan.PriorState.Values.RootModule != nil {
+				for _, rst := range r.Plan.PriorState.Values.RootModule.Resources {
 					id := rst.Address
 					var parent string
 
@@ -173,9 +176,9 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Populate planned state
-	if plan.PlannedValues != nil {
-		if plan.PlannedValues.RootModule != nil {
-			for _, rps := range plan.PlannedValues.RootModule.Resources {
+	if r.Plan.PlannedValues != nil {
+		if r.Plan.PlannedValues.RootModule != nil {
+			for _, rps := range r.Plan.PlannedValues.RootModule.Resources {
 				id := rps.Address
 				var parent string
 
@@ -217,5 +220,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 
 	rso.Resources = rs
 
-	return rso
+	r.RSO = rso
+
+	return nil
 }

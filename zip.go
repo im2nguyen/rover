@@ -10,11 +10,10 @@ import (
 	"log"
 	"os"
 	"strings"
-
-	tfjson "github.com/hashicorp/terraform-json"
+	// tfjson "github.com/hashicorp/terraform-json"
 )
 
-func generateZip(fe fs.FS, filename string, plan *tfjson.Plan, rso *ResourcesOverview, mapDM *Map, graph Graph) error {
+func (r *rover) generateZip(fe fs.FS, filename string) error {
 	newZipFile, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -51,16 +50,16 @@ func generateZip(fe fs.FS, filename string, plan *tfjson.Plan, rso *ResourcesOve
 	}
 
 	// Add plan, rso, map, graph to zip file
-	if err = AddFileToZip(zipWriter, "plan", plan); err != nil {
+	if err = AddFileToZip(zipWriter, "plan", r.Plan); err != nil {
 		return err
 	}
-	if err = AddFileToZip(zipWriter, "rso", rso); err != nil {
+	if err = AddFileToZip(zipWriter, "rso", r.RSO); err != nil {
 		return err
 	}
-	if err = AddFileToZip(zipWriter, "map", mapDM); err != nil {
+	if err = AddFileToZip(zipWriter, "map", r.Map); err != nil {
 		return err
 	}
-	if err = AddFileToZip(zipWriter, "graph", graph); err != nil {
+	if err = AddFileToZip(zipWriter, "graph", r.Graph); err != nil {
 		return err
 	}
 
