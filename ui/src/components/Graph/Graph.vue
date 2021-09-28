@@ -514,7 +514,7 @@ export default {
       this.graph = graph;
       this.renderGraph();
     } else {
-      axios.get(`http://localhost:9000/api/graph`).then((response) => {
+      axios.get(`/api/graph`).then((response) => {
         this.graph = response.data;
         this.renderGraph();
       });
