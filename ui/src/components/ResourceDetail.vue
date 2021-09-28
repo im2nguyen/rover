@@ -252,6 +252,12 @@ export default {
           rc.before = c.before ? c.before : null;
           rc.after = c.after ? c.after : {};
 
+          if (typeof rc.before === "string") {
+            rc.before = {
+              value: rc.before,
+            };
+          }
+
           if (typeof rc.after === "string") {
             rc.after = {
               value: rc.after,
