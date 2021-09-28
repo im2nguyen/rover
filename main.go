@@ -39,17 +39,39 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
+type rover struct {
+	Name           string
+	WorkingDir     string
+	TfPath         string
+	TfVarsFiles    []string
+	TfVars         []string
+	PlanPath       string
+	WorkspaceName  string
+	TFConfigExists bool
+	ShowSensitive  bool
+	Config         *tfconfig.Module
+	Plan           *tfjson.Plan
+	RSO            *ResourcesOverview
+	Map            *Map
+	Graph          Graph
+}
+
 func main() {
 	log.Println("Starting Rover...")
 
-	var tfPath, workingDir, name, zipFileName string
-	var standalone bool
+	var tfPath, workingDir, name, zipFileName, ipPort, planPath, workspaceName string
+	var standalone, tfConfigExists, showSensitive bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
+	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
+	flag.StringVar(&planPath, "planPath", "", "Plan file path")
+	flag.StringVar(&workspaceName, "workspaceName", "", "Workspace name")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
+	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
+	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
@@ -57,15 +79,42 @@ func main() {
 	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
 	parsedTfVars := strings.Split(tfVars.String(), ",")
 
+	if planPath != "" {
+		path, err := os.Getwd()
+		if err != nil {
+			log.Fatal(errors.New("Unable to get current working directory"))
+		}
+
+		if !strings.HasPrefix(planPath, "/") {
+			planPath = filepath.Join(path, planPath)
+		}
+	}
+
+	r := rover{
+		Name:           name,
+		WorkingDir:     workingDir,
+		TfPath:         tfPath,
+		PlanPath:       planPath,
+		TFConfigExists: tfConfigExists,
+		ShowSensitive:  showSensitive,
+		TfVarsFiles:    parsedTfVarsFiles,
+		TfVars:         parsedTfVars,
+		WorkspaceName:  workspaceName,
+	}
+
 	// Generate assets
-	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath, parsedTfVarsFiles, parsedTfVars)
+	err := r.generateAssets()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	log.Println("Done generating assets.")
 
 	// Save to file (debug)
-	// saveJSONToFile(name, "plan", "output", plan)
-	// saveJSONToFile(name, "rso", "output", rso)
-	// saveJSONToFile(name, "map", "output", mapDM)
-	// saveJSONToFile(name, "graph", "output", graph)
+	// saveJSONToFile(name, "plan", "output", r.Plan)
+	// saveJSONToFile(name, "rso", "output", r.Plan)
+	// saveJSONToFile(name, "map", "output", r.Map)
+	// saveJSONToFile(name, "graph", "output", r.Graph)
 
 	// Embed frontend
 	fe, err := fs.Sub(frontend, "ui/dist")
@@ -75,10 +124,7 @@ func main() {
 	frontendFS := http.FileServer(http.FS(fe))
 
 	if standalone {
-		err = generateZip(fe,
-			fmt.Sprintf("%s.zip", zipFileName),
-			plan, rso, mapDM, graph,
-		)
+		err = r.generateZip(fe, fmt.Sprintf("%s.zip", zipFileName))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -87,60 +133,84 @@ func main() {
 		return
 	}
 
-	err = startServer(frontendFS, plan, rso, mapDM, graph)
+	err = r.startServer(ipPort, frontendFS)
 	if err != nil {
 		log.Fatalf("Could not start server: %s\n", err.Error())
 	}
 }
 
-func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
-	// Generate Plan
-	plan, err := generatePlan(name, workingDir, tfPath, tfVarsFiles, tfVars)
+func (r *rover) generateAssets() error {
+	// Get Plan
+	err := r.getPlan()
 	if err != nil {
-		log.Printf(fmt.Sprintf("Unable to parse Plan: %s", err))
-		os.Exit(2)
+		return errors.New(fmt.Sprintf("Unable to parse Plan: %s", err))
 	}
 
-	// Parse Configuration
-	log.Println("Parsing configuration...")
-	// Get current directory file
-	config, _ := tfconfig.LoadModule(workingDir)
-	if config.Diagnostics.HasErrors() {
-		os.Exit(1)
+	if r.TFConfigExists {
+		// Parse Configuration
+		log.Println("Parsing configuration...")
+		// Get current directory file
+		r.Config, _ = tfconfig.LoadModule(r.WorkingDir)
+		if r.Config.Diagnostics.HasErrors() {
+			return errors.New(fmt.Sprintf("Unable to parse configuration: %s", r.Config.Diagnostics.Error()))
+		}
 	}
 
-	// Generate RSO
-	log.Println("Generating resource overview...")
-	rso := GenerateResourceOverview(plan)
+	// Generate RSO, Map, Graph
+	err = r.GenerateResourceOverview()
+	if err != nil {
+		return err
+	}
 
-	// Generate Map
-	log.Println("Generating resource map...")
-	mapDM := GenerateMap(config, rso)
+	err = r.GenerateMap()
+	if err != nil {
+		return err
+	}
 
-	// Generate Graph
-	log.Println("Generating resource graph...")
-	graph := GenerateGraph(plan, mapDM)
+	err = r.GenerateGraph()
+	if err != nil {
+		return err
+	}
 
-	return plan, rso, mapDM, graph
+	return nil
 }
 
-func generatePlan(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string) (*tfjson.Plan, error) {
+func (r *rover) getPlan() error {
 	tmpDir, err := ioutil.TempDir("", "rover")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer os.RemoveAll(tmpDir)
 
-	tf, err := tfexec.NewTerraform(workingDir, tfPath)
+	tf, err := tfexec.NewTerraform(r.WorkingDir, r.TfPath)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	// If user provided path to plan file
+	if r.PlanPath != "" {
+		log.Println("Using provided plan...")
+		r.Plan, err = tf.ShowPlanFile(context.Background(), r.PlanPath)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanPath, err))
+		}
+
+		return nil
 	}
 
 	log.Println("Initializing Terraform...")
 	// err = tf.Init(context.Background(), tfexec.Upgrade(true), tfexec.LockTimeout("60s"))
 	err = tf.Init(context.Background(), tfexec.Upgrade(true))
 	if err != nil {
-		return nil, err
+		return errors.New(fmt.Sprintf("Unable to initialize Terraform Plan: %s", err))
+	}
+
+	if r.WorkspaceName != "" {
+		log.Printf("Running in %s workspace...", r.WorkspaceName)
+		err = tf.WorkspaceSelect(context.Background(), r.WorkspaceName)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to select workspace (%s): %s", r.WorkspaceName, err))
+		}
 	}
 
 	log.Println("Generating plan...")
@@ -151,14 +221,14 @@ func generatePlan(name string, workingDir string, tfPath string, tfVarsFiles []s
 	tfPlanOptions = append(tfPlanOptions, tfexec.Out(planPath))
 
 	// Add *.tfvars files
-	for _, tfVarsFile := range tfVarsFiles {
+	for _, tfVarsFile := range r.TfVarsFiles {
 		if tfVarsFile != "" {
 			tfPlanOptions = append(tfPlanOptions, tfexec.VarFile(tfVarsFile))
 		}
 	}
 
 	// Add Terraform variables
-	for _, tfVar := range tfVars {
+	for _, tfVar := range r.TfVars {
 		if tfVar != "" {
 			tfPlanOptions = append(tfPlanOptions, tfexec.Var(tfVar))
 		}
@@ -166,12 +236,15 @@ func generatePlan(name string, workingDir string, tfPath string, tfVarsFiles []s
 
 	_, err = tf.Plan(context.Background(), tfPlanOptions...)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Unable to run Plan: %s", err))
+		return errors.New(fmt.Sprintf("Unable to run Plan: %s", err))
 	}
 
-	plan, err := tf.ShowPlanFile(context.Background(), planPath)
+	r.Plan, err = tf.ShowPlanFile(context.Background(), planPath)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Unable to read Plan: %s", err))
+	}
 
-	return plan, err
+	return nil
 }
 
 func showJSON(g interface{}) {
@@ -217,8 +290,6 @@ func saveJSONToFile(prefix string, fileType string, path string, j interface{}) 
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// log.Printf("Saved to %s", fmt.Sprintf("%s/%s-%s.json", newpath, prefix, fileType))
 
 	return fmt.Sprintf("%s/%s-%s.json", newpath, prefix, fileType)
 }

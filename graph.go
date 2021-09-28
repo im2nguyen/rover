@@ -1,10 +1,10 @@
 package main
 
 import (
+	"log"
 	"fmt"
 	"strings"
-
-	tfjson "github.com/hashicorp/terraform-json"
+	// tfjson "github.com/hashicorp/terraform-json"
 )
 
 const (
@@ -55,23 +55,45 @@ type EdgeData struct {
 }
 
 // GenerateGraph -
-func GenerateGraph(plan *tfjson.Plan, mapDM *Map) Graph {
-	graph := Graph{}
+func (r *rover) GenerateGraph() error {
+	log.Println("Generating resource graph...")
 
-	graph.Nodes = GenerateNodes(plan, mapDM)
-	graph.Edges = GenerateEdges(plan)
+	nodes := r.GenerateNodes()
+	edges := r.GenerateEdges()
 
-	return graph
+	// Edge case for terraform.workspace
+	for _, e := range edges {
+		if strings.Contains(e.Data.ID, "terraform.workspace") {
+			nodes = append(nodes, Node{
+				Data: NodeData{
+					ID:    "terraform.workspace",
+					Label: "terraform.workspace",
+					Type:  "locals",
+					// Parent is equal to basePath
+					Parent: strings.ReplaceAll(r.Map.Path, "./", ""),
+				},
+				Classes: "locals",
+			})
+			break;
+		}
+	}
+
+	r.Graph = Graph{
+		Nodes: nodes,
+		Edges: edges,
+	}
+
+	return nil
 }
 
 // GenerateNodes -
-func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
+func (r *rover) GenerateNodes() []Node {
 	nodeMap := make(map[string]Node)
 	nmo := []string{}
 
 	moduleMap := make(map[string]string)
 
-	basePath := strings.ReplaceAll(mapDM.Path, "./", "")
+	basePath := strings.ReplaceAll(r.Map.Path, "./", "")
 
 	nmo = append(nmo, basePath)
 	nodeMap[basePath] = Node{
@@ -83,9 +105,7 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 		Classes: "basename",
 	}
 
-	// mrChange := make(map[string]string)
-
-	for file := range mapDM.Files {
+	for file := range r.Map.Files {
 		// remove suffix and file path
 		fname := strings.ReplaceAll(file, fmt.Sprintf("%s/", basePath), "")
 
@@ -100,7 +120,7 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 			Classes: "fname",
 		}
 
-		for id, rdata := range mapDM.Files[file] {
+		for id, rdata := range r.Map.Files[file] {
 			rid := strings.Split(id, ".")
 
 			rtype := getPrimitiveType(rid[0])
@@ -110,8 +130,6 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 				moduleMap[id] = fname
 
 				for id, crdata := range rdata.Children {
-					// cID := strings.TrimRight(id, fmt.Sprintf(".%s", crdata.Name))
-
 					if string(crdata.ChangeAction) != "" {
 						nodeMap[id] = Node{
 							Data: NodeData{
@@ -166,7 +184,7 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 	}
 
 	// Go through all module calls, add module resources
-	planned := plan.PlannedValues.RootModule
+	planned := r.Plan.PlannedValues.RootModule
 	for _, module := range planned.ChildModules {
 		fname := moduleMap[module.Address]
 
@@ -203,10 +221,6 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 			mrChange := string(ActionNoop)
 			if _, ok := nodeMap[mr.Address]; ok {
 				mrChange = string(nodeMap[mr.Address].Data.Change)
-
-				// Delete old entry, for some reason
-				// delete(nodeMap, mr.Address)
-				// } else {
 			}
 
 			// Append resource name
@@ -226,7 +240,7 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 	}
 
 	// Get module outputs
-	config := plan.Config.RootModule
+	config := r.Plan.Config.RootModule
 	// for mName, mValue := range config.ModuleCalls {
 	// 	if mValue.Module != nil {
 	// 		mid := fmt.Sprintf("module.%s", mName)
@@ -298,11 +312,11 @@ func GenerateNodes(plan *tfjson.Plan, mapDM *Map) []Node {
 }
 
 // GenerateEdges -
-func GenerateEdges(plan *tfjson.Plan) []Edge {
+func (r *rover) GenerateEdges() []Edge {
 	edgeMap := make(map[string]Edge)
 	emo := []string{}
 
-	config := plan.Config.RootModule
+	config := r.Plan.Config.RootModule
 
 	// Loop through outputs
 	for oName, oValue := range config.Outputs {
@@ -316,6 +330,12 @@ func GenerateEdges(plan *tfjson.Plan) []Edge {
 						id := strings.Split(dependsOnR, ".")
 						dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
 					}
+
+					// if the dependency is an attribute, skip
+					if (len(strings.Split(dependsOnR, ".")) > 2) {
+						continue
+					}
+
 					id := fmt.Sprintf("%s->%s", oid, dependsOnR)
 
 					targetType := RESOURCE_COLOR

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -10,9 +11,14 @@ import (
 
 // ResourcesOverview represents the root module
 type ResourcesOverview struct {
-	Variables map[string]*tfjson.PlanVariable `json:"variables,omitempty"`
-	Outputs   map[string]*OutputOverview      `json:"output,omitempty"`
-	Resources map[string]*ResourceOverview    `json:"resources,omitempty"`
+	Variables map[string]*VariableOverview `json:"variables,omitempty"`
+	Outputs   map[string]*OutputOverview   `json:"output,omitempty"`
+	Resources map[string]*ResourceOverview `json:"resources,omitempty"`
+}
+
+type VariableOverview struct {
+	Value     interface{} `json:"value,omitempty"`
+	Sensitive *bool       `json:"sensitive,omitempty"`
 }
 
 // ResourceOverview is a modified tfjson.Plan
@@ -36,25 +42,56 @@ type OutputOverview struct {
 
 // GenerateResourceOverview - Overview of files and their resources
 // Groups different resource types together
-func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
+func (r *rover) GenerateResourceOverview() error {
+	log.Println("Generating resource overview...")
+
 	rso := &ResourcesOverview{}
 
-	rso.Variables = plan.Variables
+	// Loop through variables
+	vars := make(map[string]*VariableOverview)
+	for varName, variable := range r.Plan.Variables {
+		if _, ok := vars[varName]; !ok {
+			vars[varName] = &VariableOverview{}
+		}
+
+		vars[varName].Value = variable.Value
+	}
+
+	// If variable is sensitive and show sensitive is off, replace value with "Sensitive Value"
+	for varName, variable := range r.Plan.Config.RootModule.Variables {
+		vars[varName].Sensitive = &variable.Sensitive
+
+		if !r.ShowSensitive && variable.Sensitive {
+			vars[varName].Value = "Sensitive Value"
+		}
+	}
+	rso.Variables = vars
 
 	// Loop through outputs
 	oo := make(map[string]*OutputOverview)
 	// Loop through output configs
-	for outputName, output := range plan.Config.RootModule.Outputs {
+	for outputName, output := range r.Plan.Config.RootModule.Outputs {
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
 		}
 		oo[outputName].Config = output
 	}
 	// Loop through output changes
-	for outputName, output := range plan.OutputChanges {
+	for outputName, output := range r.Plan.OutputChanges {
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
 		}
+
+		// If before/after sensitive, set value to "Sensitive Value"
+		if !r.ShowSensitive {
+			if output.BeforeSensitive.(bool) {
+				output.Before = "Sensitive Value"
+			}
+			if output.AfterSensitive.(bool) {
+				output.After = "Sensitive Value"
+			}
+		}
+
 		oo[outputName].Change = output
 	}
 
@@ -68,7 +105,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	reGetParent := regexp.MustCompile(`^\w+\.[\w-]+`)
 
 	// Loop through each resource type and populate graph
-	for _, rc := range plan.Config.RootModule.Resources {
+	for _, rc := range r.Plan.Config.RootModule.Resources {
 		if _, ok := rs[rc.Address]; !ok {
 			rs[rc.Address] = &ResourceOverview{}
 		}
@@ -78,7 +115,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Add modules
-	for moduleName, m := range plan.Config.RootModule.ModuleCalls {
+	for moduleName, m := range r.Plan.Config.RootModule.ModuleCalls {
 		mn := fmt.Sprintf("module.%s", moduleName)
 
 		if _, ok := rs[mn]; !ok {
@@ -89,7 +126,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Loop through resource changes
-	for _, rc := range plan.ResourceChanges {
+	for _, rc := range r.Plan.ResourceChanges {
 		id := rc.Address
 		var parent string
 
@@ -128,10 +165,10 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Populate prior state
-	if plan.PriorState != nil {
-		if plan.PriorState.Values != nil {
-			if plan.PriorState.Values.RootModule != nil {
-				for _, rst := range plan.PriorState.Values.RootModule.Resources {
+	if r.Plan.PriorState != nil {
+		if r.Plan.PriorState.Values != nil {
+			if r.Plan.PriorState.Values.RootModule != nil {
+				for _, rst := range r.Plan.PriorState.Values.RootModule.Resources {
 					id := rst.Address
 					var parent string
 
@@ -173,9 +210,9 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 	}
 
 	// Populate planned state
-	if plan.PlannedValues != nil {
-		if plan.PlannedValues.RootModule != nil {
-			for _, rps := range plan.PlannedValues.RootModule.Resources {
+	if r.Plan.PlannedValues != nil {
+		if r.Plan.PlannedValues.RootModule != nil {
+			for _, rps := range r.Plan.PlannedValues.RootModule.Resources {
 				id := rps.Address
 				var parent string
 
@@ -217,5 +254,7 @@ func GenerateResourceOverview(plan *tfjson.Plan) *ResourcesOverview {
 
 	rso.Resources = rs
 
-	return rso
+	r.RSO = rso
+
+	return nil
 }
