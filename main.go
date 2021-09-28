@@ -42,7 +42,7 @@ func (i *arrayFlags) Set(value string) error {
 func main() {
 	log.Println("Starting Rover...")
 
-	var tfPath, workingDir, name, zipFileName, ipPort, planFileName string
+	var tfPath, workingDir, name, zipFileName, ipPort, planPath string
 	var standalone bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
@@ -50,17 +50,17 @@ func main() {
 	flag.StringVar(&name, "name", "rover", "Configuration name")
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
 	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
+	flag.StringVar(&planPath, "planPath", "plan.out", "Plan file path")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
-	flag.StringVar(&planFileName, "planFileName", "plan.out", "Plan file name")
 	flag.Parse()
 
 	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
 	parsedTfVars := strings.Split(tfVars.String(), ",")
 
 	// Generate assets
-	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath, parsedTfVarsFiles, parsedTfVars, planFileName)
+	plan, rso, mapDM, graph := generateAssets(name, workingDir, tfPath, parsedTfVarsFiles, parsedTfVars, planPath)
 	log.Println("Done generating assets.")
 
 	// Save to file (debug)
@@ -95,22 +95,20 @@ func main() {
 	}
 }
 
-func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string, planFileName string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
-	
+func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles []string, tfVars []string, planPath string) (*tfjson.Plan, *ResourcesOverview, *Map, Graph) {
 	var plan *tfjson.Plan
 
-	log.Println("Use plan")
 	// Get Plan
-	plan, err := getPlan(workingDir, tfPath, planFileName)
+	plan, err := getPlan(workingDir, tfPath, planPath)
 	if err != nil {
 		log.Printf("Unable to get Plan")
+
 		// Generate Plan
-		generatedPlan, err := generatePlan(name, workingDir, tfPath, tfVarsFiles, tfVars)
+		plan, err = generatePlan(name, workingDir, tfPath, tfVarsFiles, tfVars)
 		if err != nil {
 			log.Printf(fmt.Sprintf("Unable to parse Plan: %s", err))
 			os.Exit(2)
 		}
-		plan = generatedPlan
 	}
 	
 	// Parse Configuration
@@ -136,7 +134,7 @@ func generateAssets(name string, workingDir string, tfPath string, tfVarsFiles [
 	return plan, rso, mapDM, graph
 }
 
-func getPlan(workingDir string, tfPath string, planFileName string) (*tfjson.Plan, error) {
+func getPlan(workingDir string, tfPath string, planPath string) (*tfjson.Plan, error) {
 	tf, err := tfexec.NewTerraform(workingDir, tfPath)
 	if err != nil {
 		return nil, err
@@ -149,10 +147,9 @@ func getPlan(workingDir string, tfPath string, planFileName string) (*tfjson.Pla
 		return nil, err
 	}
 
-	plan, err := tf.ShowPlanFile(context.Background(), planFileName)
-
+	plan, err := tf.ShowPlanFile(context.Background(), planPath)
 	if err != nil {
-		log.Printf(fmt.Sprintf("Unable to show Plan (%s): %s", planFileName, err))
+		log.Printf(fmt.Sprintf("Unable to read Plan (%s): %s", planPath, err))
 	}
 
 	return plan, err
