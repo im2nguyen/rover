@@ -40,24 +40,25 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 type rover struct {
-	Name        string
-	WorkingDir  string
-	TfPath      string
-	TfVarsFiles []string
-	TfVars      []string
-	PlanPath    string
-	Config      *tfconfig.Module
-	Plan        *tfjson.Plan
-	RSO         *ResourcesOverview
-	Map         *Map
-	Graph       Graph
+	Name           string
+	WorkingDir     string
+	TfPath         string
+	TfVarsFiles    []string
+	TfVars         []string
+	PlanPath       string
+	TFConfigExists bool
+	Config         *tfconfig.Module
+	Plan           *tfjson.Plan
+	RSO            *ResourcesOverview
+	Map            *Map
+	Graph          Graph
 }
 
 func main() {
 	log.Println("Starting Rover...")
 
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath string
-	var standalone bool
+	var standalone, tfConfigExists bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
@@ -66,6 +67,7 @@ func main() {
 	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
 	flag.StringVar(&planPath, "planPath", "", "Plan file path")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
+	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
@@ -85,12 +87,13 @@ func main() {
 	}
 
 	r := rover{
-		Name:        name,
-		WorkingDir:  workingDir,
-		TfPath:      tfPath,
-		TfVarsFiles: parsedTfVarsFiles,
-		TfVars:      parsedTfVars,
-		PlanPath:    planPath,
+		Name:           name,
+		WorkingDir:     workingDir,
+		TfPath:         tfPath,
+		PlanPath:       planPath,
+		TFConfigExists: tfConfigExists,
+		TfVarsFiles:    parsedTfVarsFiles,
+		TfVars:         parsedTfVars,
 	}
 
 	// Generate assets
@@ -137,12 +140,14 @@ func (r *rover) generateAssets() error {
 		return errors.New(fmt.Sprintf("Unable to parse Plan: %s", err))
 	}
 
-	// Parse Configuration
-	log.Println("Parsing configuration...")
-	// Get current directory file
-	r.Config, _ = tfconfig.LoadModule(r.WorkingDir)
-	if r.Config.Diagnostics.HasErrors() {
-		return errors.New(fmt.Sprintf("Unable to parse configuration: %s", r.Config.Diagnostics.Error()))
+	if r.TFConfigExists {
+		// Parse Configuration
+		log.Println("Parsing configuration...")
+		// Get current directory file
+		r.Config, _ = tfconfig.LoadModule(r.WorkingDir)
+		if r.Config.Diagnostics.HasErrors() {
+			return errors.New(fmt.Sprintf("Unable to parse configuration: %s", r.Config.Diagnostics.Error()))
+		}
 	}
 
 	// Generate RSO, Map, Graph
@@ -226,8 +231,6 @@ func (r *rover) getPlan() error {
 	if err != nil {
 		return errors.New(fmt.Sprintf("Unable to read Plan: %s", err))
 	}
-
-	log.Printf("plan path - %s", planPath)
 
 	return nil
 }
