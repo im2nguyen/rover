@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	// tfjson "github.com/hashicorp/terraform-json"
 )
 
 func (r *rover) generateZip(fe fs.FS, filename string) error {

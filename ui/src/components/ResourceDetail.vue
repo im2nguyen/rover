@@ -252,6 +252,12 @@ export default {
           rc.before = c.before ? c.before : null;
           rc.after = c.after ? c.after : {};
 
+          if (typeof rc.after === "string") {
+            rc.after = {
+              value: rc.after,
+            };
+          }
+
           if (c["after_unknown"]) {
             rc.after["value"] = { unknown: true };
           }
@@ -431,7 +437,7 @@ export default {
       // eslint-disable-next-line no-undef
       this.overview = rso;
     } else {
-      axios.get("http://localhost:9000/api/rso").then((response) => {
+      axios.get(`/api/rso`).then((response) => {
         this.overview = response.data;
       });
     }
