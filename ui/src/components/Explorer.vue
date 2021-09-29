@@ -40,7 +40,7 @@ export default {
       // eslint-disable-next-line no-undef
       this.map = map;
     } else {
-      axios.get(`http://localhost:9000/api/map`).then((response) => {
+      axios.get(`/api/map`).then((response) => {
         this.map = response.data;
       });
     }

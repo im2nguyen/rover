@@ -68,3 +68,17 @@ resource "random_pet" "birds" {
   prefix = each.key
   length = each.value
 }
+
+data "http" "terraform_metadata" {
+  url = "https://checkpoint-api.hashicorp.com/v1/check/terraform"
+
+  # Optional request headers
+  request_headers = {
+    Accept = "application/json"
+  }
+}
+
+output "terraform_metadata" {
+  description = "Terraform metadata"
+  value = data.http.terraform_metadata.body
+}

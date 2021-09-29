@@ -21,6 +21,8 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
+const VERSION = "0.2.1"
+
 //go:embed ui/dist
 var frontend embed.FS
 
@@ -57,10 +59,8 @@ type rover struct {
 }
 
 func main() {
-	log.Println("Starting Rover...")
-
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, workspaceName string
-	var standalone, tfConfigExists, showSensitive bool
+	var standalone, tfConfigExists, showSensitive, getVersion bool
 	var tfVarsFiles, tfVars arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
@@ -72,9 +72,17 @@ func main() {
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
 	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
+	flag.BoolVar(&getVersion, "version", false, "Get current version")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Parse()
+
+	if getVersion {
+		fmt.Printf("Rover v%s\n", VERSION)
+		return
+	}
+
+	log.Println("Starting Rover...")
 
 	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
 	parsedTfVars := strings.Split(tfVars.String(), ",")
