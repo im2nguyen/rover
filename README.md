@@ -41,11 +41,11 @@ Standalone mode generates a `rover.zip` file containing all the static assets.
 $ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -standalone true
 ```
 
-After all the assets are generated, unzip `rover.zip` and open `rover/index.html` in your favorite web browser.
+After all the assets are generated, unzip `rover.zip` and open `rover/index.html` in your favourite web browser.
 
 ### Set environment variables
 
-Use `--env` or `--env-file` to set environment variables in the Docker container. For example, you can save your AWS credentials to an `.env` file.
+Use `--env` or `--env-file` to set environment variables in the Docker container. For example, you can save your AWS credentials to a `.env` file.
 
 ```
 $ printenv | grep "AWS" > .env
@@ -127,7 +127,7 @@ $ docker build . -t im2nguyen/rover --no-cache
 
 ## Basic usage
 
-This repository contains two example Terraform configurations in `example`.
+This repository contains two examples of Terraform configurations in `example`.
 
 Navigate into `random-test` example configuration. This directory contains configuration that showcases a wide variety of features common in Terraform (modules, count, output, locals, etc) with the [`random`](https://registry.terraform.io/providers/hashicorp/random/latest) provider.
 
