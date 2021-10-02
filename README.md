@@ -57,12 +57,12 @@ Then, add it as environment variables to your Docker container with `--env-file`
 $ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/rover
 ```
 
-## Define tfvars and Terraform variables
+## Define tfbackend, tfvars and Terraform variables
 
-Use `-tfVarsFile` or `-tfVar` to define variables. For example, you can run the following in the `example/random-test` directory to overload variables.
+Use `-tfBackendConfig` to define backend config files and `-tfVarsFile` or `-tfVar` to define variables. For example, you can run the following in the `example/random-test` directory to overload variables.
 
 ```
-$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -tfVarsFile test.tfvars -tfVar max_length=4
+$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -tfBackendConfig test.tfbackend -tfVarsFile test.tfvars -tfVar max_length=4
 ```
 
 ## Installation

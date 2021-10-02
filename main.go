@@ -42,26 +42,27 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 type rover struct {
-	Name           string
-	WorkingDir     string
-	TfPath         string
-	TfVarsFiles    []string
-	TfVars         []string
-	PlanPath       string
-	WorkspaceName  string
-	TFConfigExists bool
-	ShowSensitive  bool
-	Config         *tfconfig.Module
-	Plan           *tfjson.Plan
-	RSO            *ResourcesOverview
-	Map            *Map
-	Graph          Graph
+	Name             string
+	WorkingDir       string
+	TfPath           string
+	TfVarsFiles      []string
+	TfVars           []string
+	TfBackendConfigs []string
+	PlanPath         string
+	WorkspaceName    string
+	TFConfigExists   bool
+	ShowSensitive    bool
+	Config           *tfconfig.Module
+	Plan             *tfjson.Plan
+	RSO              *ResourcesOverview
+	Map              *Map
+	Graph            Graph
 }
 
 func main() {
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, workspaceName string
 	var standalone, tfConfigExists, showSensitive, getVersion bool
-	var tfVarsFiles, tfVars arrayFlags
+	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
@@ -75,6 +76,7 @@ func main() {
 	flag.BoolVar(&getVersion, "version", false, "Get current version")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
+	flag.Var(&tfBackendConfigs, "tfBackendConfig", "Path to *.tfbackend files")
 	flag.Parse()
 
 	if getVersion {
@@ -86,6 +88,7 @@ func main() {
 
 	parsedTfVarsFiles := strings.Split(tfVarsFiles.String(), ",")
 	parsedTfVars := strings.Split(tfVars.String(), ",")
+	parsedTfBackendConfigs := strings.Split(tfBackendConfigs.String(), ",")
 
 	if planPath != "" {
 		path, err := os.Getwd()
@@ -99,15 +102,16 @@ func main() {
 	}
 
 	r := rover{
-		Name:           name,
-		WorkingDir:     workingDir,
-		TfPath:         tfPath,
-		PlanPath:       planPath,
-		TFConfigExists: tfConfigExists,
-		ShowSensitive:  showSensitive,
-		TfVarsFiles:    parsedTfVarsFiles,
-		TfVars:         parsedTfVars,
-		WorkspaceName:  workspaceName,
+		Name:             name,
+		WorkingDir:       workingDir,
+		TfPath:           tfPath,
+		PlanPath:         planPath,
+		TFConfigExists:   tfConfigExists,
+		ShowSensitive:    showSensitive,
+		TfVarsFiles:      parsedTfVarsFiles,
+		TfVars:           parsedTfVars,
+		TfBackendConfigs: parsedTfBackendConfigs,
+		WorkspaceName:    workspaceName,
 	}
 
 	// Generate assets
@@ -207,8 +211,21 @@ func (r *rover) getPlan() error {
 	}
 
 	log.Println("Initializing Terraform...")
-	// err = tf.Init(context.Background(), tfexec.Upgrade(true), tfexec.LockTimeout("60s"))
-	err = tf.Init(context.Background(), tfexec.Upgrade(true))
+
+	// Create TF Init options
+	var tfInitOptions []tfexec.InitOption
+	tfInitOptions = append(tfInitOptions, tfexec.Upgrade(true))
+
+	// Add *.tfbackend files
+	for _, tfBackendConfig := range r.TfBackendConfigs {
+		if tfBackendConfig != "" {
+			tfInitOptions = append(tfInitOptions, tfexec.BackendConfig(tfBackendConfig))
+		}
+	}
+
+	// tfInitOptions = append(tfInitOptions, tfexec.LockTimeout("60s"))
+
+	err = tf.Init(context.Background(), tfInitOptions...)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Unable to initialize Terraform Plan: %s", err))
 	}
