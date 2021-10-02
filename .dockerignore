@@ -1,0 +1,8 @@
+# ignore .git
+.git
+.github
+docs
+example
+rover
+**/node_modules
+**/dist
