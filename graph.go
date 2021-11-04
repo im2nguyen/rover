@@ -1,8 +1,8 @@
 package main
 
 import (
-	"log"
 	"fmt"
+	"log"
 	"strings"
 	// tfjson "github.com/hashicorp/terraform-json"
 )
@@ -74,7 +74,7 @@ func (r *rover) GenerateGraph() error {
 				},
 				Classes: "locals",
 			})
-			break;
+			break
 		}
 	}
 
@@ -332,7 +332,7 @@ func (r *rover) GenerateEdges() []Edge {
 					}
 
 					// if the dependency is an attribute, skip
-					if (len(strings.Split(dependsOnR, ".")) > 2) {
+					if len(strings.Split(dependsOnR, ".")) > 2 {
 						continue
 					}
 

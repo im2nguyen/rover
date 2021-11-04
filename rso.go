@@ -87,7 +87,7 @@ func (r *rover) GenerateResourceOverview() error {
 			if output.BeforeSensitive != nil {
 				if output.BeforeSensitive.(bool) {
 					output.Before = "Sensitive Value"
-				}	
+				}
 			}
 			if output.AfterSensitive != nil {
 				if output.AfterSensitive.(bool) {

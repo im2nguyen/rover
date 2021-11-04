@@ -49,6 +49,7 @@ type rover struct {
 	TfVars           []string
 	TfBackendConfigs []string
 	PlanPath         string
+	PlanJSONPath     string
 	WorkspaceName    string
 	TFConfigExists   bool
 	ShowSensitive    bool
@@ -60,7 +61,7 @@ type rover struct {
 }
 
 func main() {
-	var tfPath, workingDir, name, zipFileName, ipPort, planPath, workspaceName string
+	var tfPath, workingDir, name, zipFileName, ipPort, planPath, planJSONPath, workspaceName string
 	var standalone, tfConfigExists, showSensitive, getVersion bool
 	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
@@ -69,6 +70,7 @@ func main() {
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
 	flag.StringVar(&ipPort, "ipPort", "0.0.0.0:9000", "IP and port for Rover server")
 	flag.StringVar(&planPath, "planPath", "", "Plan file path")
+	flag.StringVar(&planJSONPath, "planJSONPath", "", "Plan JSON file path")
 	flag.StringVar(&workspaceName, "workspaceName", "", "Workspace name")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
 	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
@@ -90,14 +92,20 @@ func main() {
 	parsedTfVars := strings.Split(tfVars.String(), ",")
 	parsedTfBackendConfigs := strings.Split(tfBackendConfigs.String(), ",")
 
-	if planPath != "" {
-		path, err := os.Getwd()
-		if err != nil {
-			log.Fatal(errors.New("Unable to get current working directory"))
-		}
+	path, err := os.Getwd()
+	if err != nil {
+		log.Fatal(errors.New("Unable to get current working directory"))
+	}
 
+	if planPath != "" {
 		if !strings.HasPrefix(planPath, "/") {
 			planPath = filepath.Join(path, planPath)
+		}
+	}
+
+	if planJSONPath != "" {
+		if !strings.HasPrefix(planJSONPath, "/") {
+			planJSONPath = filepath.Join(path, planJSONPath)
 		}
 	}
 
@@ -106,6 +114,7 @@ func main() {
 		WorkingDir:       workingDir,
 		TfPath:           tfPath,
 		PlanPath:         planPath,
+		PlanJSONPath:     planJSONPath,
 		TFConfigExists:   tfConfigExists,
 		ShowSensitive:    showSensitive,
 		TfVarsFiles:      parsedTfVarsFiles,
@@ -115,7 +124,7 @@ func main() {
 	}
 
 	// Generate assets
-	err := r.generateAssets()
+	err = r.generateAssets()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -205,6 +214,28 @@ func (r *rover) getPlan() error {
 		r.Plan, err = tf.ShowPlanFile(context.Background(), r.PlanPath)
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanPath, err))
+		}
+
+		return nil
+	}
+
+	// If user provided path to plan JSON file
+	if r.PlanJSONPath != "" {
+		log.Println("Using provided JSON plan...")
+
+		planJsonFile, err := os.Open(r.PlanJSONPath)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanJSONPath, err))
+		}
+		defer planJsonFile.Close()
+
+		planJson, err := ioutil.ReadAll(planJsonFile)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanJSONPath, err))
+		}
+
+		if err := json.Unmarshal(planJson, &r.Plan); err != nil {
+			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanJSONPath, err))
 		}
 
 		return nil
