@@ -321,8 +321,8 @@ func (r *rover) getPlan() error {
 
 				if run.Plan != nil {
 					planID = run.Plan.ID
-					// Add 10 second timeout so plan JSON becomes available
-					time.Sleep(10 * time.Second)
+					// Add 20 second timeout so plan JSON becomes available
+					time.Sleep(20 * time.Second)
 					log.Printf("Run %s to completed!", newRun.ID)
 					break
 				}

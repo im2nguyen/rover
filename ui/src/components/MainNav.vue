@@ -6,7 +6,9 @@
       </a>
     </div>
     <div class="nav-right">
-      <a class="button outline" @click="saveGraph()">Save Graph</a>
+      <a id="saveGraph" class="button outline" @click="saveGraph()"
+        >Save Graph</a
+      >
       <!-- <a class="button outline" @click="toggleGraph()">{{
         graph ? "Hide Graph" : "Show Graph"
       }}</a> -->
