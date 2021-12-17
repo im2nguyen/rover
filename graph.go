@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
 	"fmt"
+	"log"
 	"strings"
-	// tfjson "github.com/hashicorp/terraform-json"
+
+	tfjson "github.com/hashicorp/terraform-json"
 )
 
 const (
@@ -74,7 +75,7 @@ func (r *rover) GenerateGraph() error {
 				},
 				Classes: "locals",
 			})
-			break;
+			break
 		}
 	}
 
@@ -86,8 +87,81 @@ func (r *rover) GenerateGraph() error {
 	return nil
 }
 
+func addModules(moduleMap map[string]string, nodeMap map[string]Node, module *tfjson.StateModule) []string {
+
+	nmo := []string{}
+
+	for _, childModule := range module.ChildModules {
+
+		fname := moduleMap[childModule.Address]
+		if fname == "" {
+			fname = module.Address
+		}
+
+		// Append resource name
+		nmo = append(nmo, childModule.Address)
+
+		label := strings.TrimPrefix(childModule.Address, fname+".")
+		label = strings.TrimPrefix(label, "module.")
+
+		nodeMap[childModule.Address] = Node{
+			Data: NodeData{
+				ID:     childModule.Address,
+				Label:  label,
+				Type:   "module",
+				Parent: fname,
+			},
+			Classes: "module",
+		}
+
+		for _, mr := range childModule.Resources {
+			resourceNameSuffix := "name"
+
+			mid := fmt.Sprintf("%s.%s", childModule.Address, mr.Type)
+
+			// Append resource type
+			nmo = append(nmo, mid)
+			nodeMap[mid] = Node{
+				Data: NodeData{
+					ID:          mid,
+					Label:       mr.Type,
+					Type:        "resource",
+					Parent:      childModule.Address,
+					ParentColor: getResourceColor(childModule.Address),
+				},
+				Classes: "resource-type",
+			}
+
+			mrChange := string(ActionNoop)
+			if _, ok := nodeMap[mr.Address]; ok {
+				mrChange = string(nodeMap[mr.Address].Data.Change)
+			}
+
+			// Append resource name
+			nmo = append(nmo, mr.Address)
+			nodeMap[mr.Address] = Node{
+				Data: NodeData{
+					ID:          mr.Address,
+					Label:       mr.Name,
+					Type:        getPrimitiveType(mr.Type),
+					Parent:      mid,
+					ParentColor: getResourceColor(module.Address),
+					Change:      mrChange,
+				},
+				Classes: fmt.Sprintf("resource-%s %s", resourceNameSuffix, mrChange),
+			}
+		}
+
+		// Append submodules
+		nmo = append(nmo, addModules(moduleMap, nodeMap, childModule)...)
+	}
+
+	return nmo
+}
+
 // GenerateNodes -
 func (r *rover) GenerateNodes() []Node {
+
 	nodeMap := make(map[string]Node)
 	nmo := []string{}
 
@@ -128,7 +202,6 @@ func (r *rover) GenerateNodes() []Node {
 			switch rtype {
 			case "module":
 				moduleMap[id] = fname
-
 				for id, crdata := range rdata.Children {
 					if string(crdata.ChangeAction) != "" {
 						nodeMap[id] = Node{
@@ -184,60 +257,8 @@ func (r *rover) GenerateNodes() []Node {
 	}
 
 	// Go through all module calls, add module resources
-	planned := r.Plan.PlannedValues.RootModule
-	for _, module := range planned.ChildModules {
-		fname := moduleMap[module.Address]
 
-		// Append resource name
-		nmo = append(nmo, module.Address)
-		nodeMap[module.Address] = Node{
-			Data: NodeData{
-				ID:     module.Address,
-				Label:  strings.TrimPrefix(module.Address, "module."),
-				Type:   "module",
-				Parent: fname,
-			},
-			Classes: "module",
-		}
-
-		for _, mr := range module.Resources {
-			resourceNameSuffix := "name"
-
-			mid := fmt.Sprintf("%s.%s", module.Address, mr.Type)
-
-			// Append resource type
-			nmo = append(nmo, mid)
-			nodeMap[mid] = Node{
-				Data: NodeData{
-					ID:          mid,
-					Label:       mr.Type,
-					Type:        "resource",
-					Parent:      module.Address,
-					ParentColor: getResourceColor(module.Address),
-				},
-				Classes: "resource-type",
-			}
-
-			mrChange := string(ActionNoop)
-			if _, ok := nodeMap[mr.Address]; ok {
-				mrChange = string(nodeMap[mr.Address].Data.Change)
-			}
-
-			// Append resource name
-			nmo = append(nmo, mr.Address)
-			nodeMap[mr.Address] = Node{
-				Data: NodeData{
-					ID:          mr.Address,
-					Label:       mr.Name,
-					Type:        getPrimitiveType(mr.Type),
-					Parent:      mid,
-					ParentColor: getResourceColor(module.Address),
-					Change:      mrChange,
-				},
-				Classes: fmt.Sprintf("resource-%s %s", resourceNameSuffix, mrChange),
-			}
-		}
-	}
+	nmo = append(nmo, addModules(moduleMap, nodeMap, r.Plan.PlannedValues.RootModule)...)
 
 	// Get module outputs
 	config := r.Plan.Config.RootModule
@@ -332,7 +353,7 @@ func (r *rover) GenerateEdges() []Edge {
 					}
 
 					// if the dependency is an attribute, skip
-					if (len(strings.Split(dependsOnR, ".")) > 2) {
+					if len(strings.Split(dependsOnR, ".")) > 2 {
 						continue
 					}
 
@@ -426,10 +447,11 @@ func (r *rover) GenerateEdges() []Edge {
 
 	// Loop through modules
 	for mid, module := range config.ModuleCalls {
-		// fmt.Printf("%+v - %+v\n", oName, oValue)
+		//fmt.Printf("%+v - %+v\n", mid, module)
 		for _, mExpressions := range module.Expressions {
 			for _, dependsOnR := range mExpressions.References {
 				if !strings.HasPrefix(dependsOnR, "each.") {
+
 					if strings.HasPrefix(dependsOnR, "module.") {
 						id := strings.Split(dependsOnR, ".")
 						dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
