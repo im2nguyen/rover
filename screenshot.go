@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 )
 
 // Heavily inspired by: https://github.com/chromedp/examples/blob/master/download_file/main.go
-func main() {
+func screenshot() {
 	// ctx, cancel := chromedp.NewContext(context.Background(), chromedp.WithDebugf(log.Printf))
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -24,13 +25,33 @@ func main() {
 
 	url := "http://localhost:9000"
 
+	// Health Check
+	for {
+		time.Sleep(time.Second)
+
+		log.Println("Checking if started...")
+		resp, err := http.Get(url + "/health")
+		if err != nil {
+			log.Println("Failed:", err)
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Println("Not OK:", resp.StatusCode)
+			continue
+		}
+
+		// Reached this point: server is up and running!
+		break
+	}
+
 	// this will be used to capture the file name later
 	var downloadGUID string
 
 	downloadComplete := make(chan bool)
 	chromedp.ListenTarget(ctx, func(v interface{}) {
 		if ev, ok := v.(*browser.EventDownloadProgress); ok {
-			if ev.State == browser.DownloadProgressStateCompleted {
+			if ev.State == browser.DownloadProgressStateCanceled || ev.State == browser.DownloadProgressStateCompleted {
 				downloadGUID = ev.GUID
 				close(downloadComplete)
 			}
@@ -39,7 +60,7 @@ func main() {
 
 	if err := chromedp.Run(ctx, chromedp.Tasks{
 		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
-			WithDownloadPath(".").
+			WithDownloadPath(os.TempDir()).
 			WithEventsEnabled(true),
 
 		chromedp.Navigate(url),
@@ -55,10 +76,10 @@ func main() {
 
 	<-downloadComplete
 
-	e := os.Rename(fmt.Sprintf("./%s", downloadGUID), "./rover.png")
+	e := os.Rename(fmt.Sprintf("%v/%v", os.TempDir(), downloadGUID), "./rover.png")
 	if e != nil {
 		log.Fatal(e)
 	}
 
-	log.Println("Complete Download")
+	log.Println("Image generation complete")
 }

@@ -59,4 +59,5 @@ func (ro *rover) startServer(ipPort string, frontendFS http.Handler) error {
 	log.Printf("Rover is running on %s", ipPort)
 
 	return http.ListenAndServe(ipPort, nil)
+
 }

@@ -58,6 +58,7 @@ type rover struct {
 	TFCWorkspaceName string
 	TFConfigExists   bool
 	ShowSensitive    bool
+	GenImage         bool
 	TFCNewRun        bool
 	Config           *tfconfig.Module
 	Plan             *tfjson.Plan
@@ -68,7 +69,7 @@ type rover struct {
 
 func main() {
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, planJSONPath, workspaceName, tfcOrgName, tfcWorkspaceName string
-	var standalone, tfConfigExists, showSensitive, getVersion, tfcNewRun bool
+	var standalone, genImage, tfConfigExists, showSensitive, getVersion, tfcNewRun bool
 	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
@@ -85,6 +86,7 @@ func main() {
 	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
 	flag.BoolVar(&tfcNewRun, "tfcNewRun", false, "Create new Terraform Cloud run")
 	flag.BoolVar(&getVersion, "version", false, "Get current version")
+	flag.BoolVar(&genImage, "genImage", false, "Generate graph image")
 	flag.Var(&tfVarsFiles, "tfVarsFile", "Path to *.tfvars files")
 	flag.Var(&tfVars, "tfVar", "Terraform variable (key=value)")
 	flag.Var(&tfBackendConfigs, "tfBackendConfig", "Path to *.tfbackend files")
@@ -126,6 +128,7 @@ func main() {
 		PlanJSONPath:     planJSONPath,
 		TFConfigExists:   tfConfigExists,
 		ShowSensitive:    showSensitive,
+		GenImage:         genImage,
 		TfVarsFiles:      parsedTfVarsFiles,
 		TfVars:           parsedTfVars,
 		TfBackendConfigs: parsedTfBackendConfigs,
@@ -166,10 +169,15 @@ func main() {
 		return
 	}
 
+	if genImage {
+		go screenshot()
+	}
+
 	err = r.startServer(ipPort, frontendFS)
 	if err != nil {
 		log.Fatalf("Could not start server: %s\n", err.Error())
 	}
+
 }
 
 func (r *rover) generateAssets() error {
