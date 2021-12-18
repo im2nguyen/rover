@@ -29,7 +29,7 @@ func screenshot() {
 	for {
 		time.Sleep(time.Second)
 
-		log.Println("Checking if started...")
+		//log.Println("Checking if started...")
 		resp, err := http.Get(url + "/health")
 		if err != nil {
 			log.Println("Failed:", err)
