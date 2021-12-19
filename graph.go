@@ -184,7 +184,7 @@ func (r *rover) GenerateNodes() []Node {
 	}
 
 	// Go through all module calls, add module resources
-	planned := r.Plan.PlannedValues.RootModule
+	planned := r.Plan.PlannedValues.RootModule.ChildModules[0]
 	for _, module := range planned.ChildModules {
 		fname := moduleMap[module.Address]
 

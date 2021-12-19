@@ -81,28 +81,11 @@ type ModuleCall struct {
 	Line    int    `json:"line,omitempty"`
 }
 
-// Generates Map - Overview of files and their resources
-// Groups different resource types together
-// Defaults to config
-func (r *rover) GenerateMap() error {
-	log.Println("Generating resource map...")
-
-	if !r.TFConfigExists {
-		return r.GenerateMapNoConfig()
-	}
-
-	mapObj := &Map{
-		Path:              r.Config.Path,
-		RequiredProviders: r.Config.RequiredProviders,
-		RequiredCore:      r.Config.RequiredCore,
-		// ProviderConfigs:   module.ProviderConfigs,
-		Modules: make(map[string]*tfconfig.ModuleCall),
-	}
-
-	files := make(map[string]map[string]*Resource)
+func (r *rover) GenerateModuleMap(mapObj *Map, module *tfconfig.Module, config *tfjson.ConfigModule, files map[string]map[string]*Resource) {
+	log.Println("Generating map for module %v...", module.Path)
 
 	// Loop through each resource type and populate graph
-	for _, variable := range r.Config.Variables {
+	for _, variable := range module.Variables {
 		// Populate with file if doesn't exist
 		if _, ok := files[variable.Pos.Filename]; !ok {
 			files[variable.Pos.Filename] = make(map[string]*Resource)
@@ -118,16 +101,19 @@ func (r *rover) GenerateMap() error {
 		}
 
 		// Get variable sensitivity
-		if _, ok := r.Plan.Config.RootModule.Variables[variable.Name]; ok {
-			files[variable.Pos.Filename][id].Sensitive = r.Plan.Config.RootModule.Variables[variable.Name].Sensitive
+		if _, ok := config.Variables[variable.Name]; ok {
+			files[variable.Pos.Filename][id].Sensitive = config.Variables[variable.Name].Sensitive
 		}
 	}
 
-	for _, output := range r.Config.Outputs {
+	for _, output := range module.Outputs {
+
 		// Populate with file if doesn't exist
 		if _, ok := files[output.Pos.Filename]; !ok {
 			files[output.Pos.Filename] = make(map[string]*Resource)
 		}
+
+		fmt.Printf("%v\n", output.Name)
 
 		id := fmt.Sprintf("output.%s", output.Name)
 
@@ -153,7 +139,7 @@ func (r *rover) GenerateMap() error {
 		files[output.Pos.Filename][id] = oo
 	}
 
-	for _, resource := range r.Config.ManagedResources {
+	for _, resource := range module.ManagedResources {
 		// Populate with file if doesn't exist
 		if _, ok := files[resource.Pos.Filename]; !ok {
 			files[resource.Pos.Filename] = make(map[string]*Resource)
@@ -203,7 +189,7 @@ func (r *rover) GenerateMap() error {
 		files[resource.Pos.Filename][id] = re
 	}
 
-	for _, data := range r.Config.DataResources {
+	for _, data := range module.DataResources {
 		// Populate with file if doesn't exist
 		if _, ok := files[data.Pos.Filename]; !ok {
 			files[data.Pos.Filename] = make(map[string]*Resource)
@@ -228,7 +214,7 @@ func (r *rover) GenerateMap() error {
 		}
 	}
 
-	for _, mc := range r.Config.ModuleCalls {
+	for _, mc := range module.ModuleCalls {
 		// Populate with file if doesn't exist
 		if _, ok := files[mc.Pos.Filename]; !ok {
 			files[mc.Pos.Filename] = make(map[string]*Resource)
@@ -304,7 +290,33 @@ func (r *rover) GenerateMap() error {
 		}
 
 		files[mc.Pos.Filename][id] = m
+
+		//r.GenerateModuleMap(mapObj, r.RSO.Resources[id].ModuleConfig., r.RSO.Resources[id].ModuleConfig.Module, files)
 	}
+
+}
+
+// Generates Map - Overview of files and their resources
+// Groups different resource types together
+// Defaults to config
+func (r *rover) GenerateMap() error {
+	log.Println("Generating resource map...")
+
+	if !r.TFConfigExists {
+		return r.GenerateMapNoConfig()
+	}
+
+	mapObj := &Map{
+		Path:              r.Config.Path,
+		RequiredProviders: r.Config.RequiredProviders,
+		RequiredCore:      r.Config.RequiredCore,
+		// ProviderConfigs:   module.ProviderConfigs,
+		Modules: make(map[string]*tfconfig.ModuleCall),
+	}
+
+	files := make(map[string]map[string]*Resource)
+
+	r.GenerateModuleMap(mapObj, r.Config, r.Plan.Config.RootModule, files)
 
 	mapObj.Files = files
 
