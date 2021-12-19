@@ -173,15 +173,15 @@ export default {
       return val ? val : "null";
     },
     getResourceConfig(resourceID, model, isChild) {
-      // console.log(`resourceID: ${resourceID}`);
-      // console.log(model);
+      console.log(`resourceID: ${resourceID}`);
+      console.log(model);
 
       // Variables
-      if (resourceID.startsWith("var.")) {
+      if (resourceID.includes("var.")) {
         return model.variables[resourceID.replace("var.", "")];
       }
       // Outputs
-      if (resourceID.startsWith("output.")) {
+      if (resourceID.includes("output.")) {
         let id = resourceID.replace("output.", "");
         if (model.output[id]) {
           return model.output[id].config;
@@ -237,12 +237,12 @@ export default {
 
       let rc = {};
 
-      if (resourceID.startsWith("var.")) {
+      if (resourceID.includes("var.")) {
         return (rc = {});
       }
-      if (resourceID.startsWith("output.")) {
+      if (resourceID.includes("output.")) {
         let id = resourceID.replace("output.", "");
-        // let id = resourceID;
+        //let id = resourceID;
         if (model.output[id] && model.output[id].change) {
           const c = model.output[id].change;
 
@@ -389,7 +389,7 @@ export default {
       return this.resource.id.match(/^\w+\.[\w-]+[[.]/g) != null;
     },
     hasNoState() {
-      return this.resource.id.startsWith("var.");
+      return this.resource.id.includes("var.");
     },
     resourceConfig() {
       if (this.resource.id === "") {
@@ -459,6 +459,7 @@ export default {
     } else {
       axios.get(`/api/rso`).then((response) => {
         this.overview = response.data;
+        console.log(this.overview);
       });
     }
   },

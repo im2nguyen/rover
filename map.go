@@ -84,8 +84,6 @@ type ModuleCall struct {
 
 func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentPath string, mapObj *Map, module *tfconfig.Module, config *tfjson.ConfigModule, files map[string]map[string]map[string]*Resource) {
 
-	fmt.Printf("Generating map for module \"%v\"...\n", module.Path)
-
 	prefix := parentModule
 	if parentModule != "" {
 		prefix = fmt.Sprintf("%s.", prefix)
@@ -128,8 +126,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 		// Populate with file if doesn't exist
 		r.AddFileIfNotExists(parent, parentModule, fname, files)
-
-		fmt.Printf("%v\n", output.Name)
 
 		id := fmt.Sprintf("%soutput.%s", prefix, output.Name)
 
@@ -177,7 +173,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 
 		if _, ok := r.RSO.Resources[id]; ok {
-			fmt.Printf("%v\n", id)
 			if r.RSO.Resources[id].Change.Actions != nil {
 
 				re.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
@@ -185,27 +180,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 				if len(r.RSO.Resources[id].Change.Actions) > 1 {
 					re.ChangeAction = ActionReplace
 				}
-			}
-
-			for crName, cr := range r.RSO.Resources[id].Children {
-				if re.Children == nil {
-					re.Children = make(map[string]*Resource)
-				}
-
-				tcr := &Resource{
-					Type: ResourceTypeResource,
-					Name: crName,
-				}
-
-				if cr.Change.Actions != nil {
-					tcr.ChangeAction = Action(string(cr.Change.Actions[0]))
-
-					if len(cr.Change.Actions) > 1 {
-						tcr.ChangeAction = ActionReplace
-					}
-				}
-
-				re.Children[crName] = tcr
 			}
 		}
 

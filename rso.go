@@ -44,7 +44,7 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 
 	// Loop through output configs
 	for outputName, output := range config.Outputs {
-		outputName = fmt.Sprintf("%s.%s", prefix, outputName)
+		outputName = fmt.Sprintf("%s.output.%s", prefix, outputName)
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
 		}
@@ -96,8 +96,6 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 
 		rs[prefix].Children[mn] = rs[mn]
 
-		fmt.Printf("Generating rso for %v - %v -------------------------------------\n", moduleName, mn)
-
 		r.GenerateModuleOverview(mn, rso, rs, oo, m.Module)
 	}
 }
@@ -127,9 +125,11 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 			// Add resource to parent
 			if parent != "" {
 				// Create resource if doesn't exist
-				if _, ok := rs[parent].Children[id]; !ok {
-					rs[parent].Children[id] = &ResourceOverview{}
+				if _, ok := rs[id]; !ok {
+					rs[id] = &ResourceOverview{}
 				}
+
+				rs[parent].Children[id] = rs[id]
 
 				if prior {
 					rs[parent].Children[id].PriorState = rst.AttributeValues
@@ -142,9 +142,9 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 				rs[parent].Children[id].Config.Type = rst.Type
 			} else {
 				if prior {
-					rs[rst.Address].PriorState = rst.AttributeValues
+					rs[id].PriorState = rst.AttributeValues
 				} else {
-					rs[rst.Address].PlannedState = rst.AttributeValues
+					rs[id].PlannedState = rst.AttributeValues
 
 				}
 			}
@@ -193,6 +193,7 @@ func (r *rover) GenerateResourceOverview() error {
 	for outputName, output := range r.Plan.OutputChanges {
 		if _, ok := oo[outputName]; !ok {
 			oo[outputName] = &OutputOverview{}
+
 		}
 
 		// If before/after sensitive, set value to "Sensitive Value"
@@ -238,7 +239,6 @@ func (r *rover) GenerateResourceOverview() error {
 		}
 
 		if rc.Change != nil {
-			fmt.Printf("Addy: %v\n", id)
 			// Add resource to parent
 			if parent != "" {
 				// Create resource if doesn't exist
@@ -276,8 +276,6 @@ func (r *rover) GenerateResourceOverview() error {
 	rso.Resources = rs
 
 	r.RSO = rso
-
-	fmt.Printf("%v\n", r.RSO.Resources["module.backend.module.service[\"saga_job_cluster\"]"])
 
 	return nil
 }
