@@ -62,10 +62,14 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 			rs[address] = &ResourceOverview{}
 		}
 
-		fmt.Printf("%v\n", address)
-
 		rs[address].Config = *rc
 		rs[address].DependsOn = rc.DependsOn
+
+		if rs[prefix].Children == nil {
+			rs[prefix].Children = make(map[string]*ResourceOverview)
+		}
+
+		rs[prefix].Children[address] = rs[address]
 	}
 
 	// Add modules
@@ -81,6 +85,16 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 		}
 
 		rs[mn].ModuleConfig = m
+
+		if _, ok := rs[prefix]; !ok {
+			rs[prefix] = &ResourceOverview{}
+		}
+
+		if rs[prefix].Children == nil {
+			rs[prefix].Children = make(map[string]*ResourceOverview)
+		}
+
+		rs[prefix].Children[mn] = rs[mn]
 
 		fmt.Printf("Generating rso for %v - %v -------------------------------------\n", moduleName, mn)
 
@@ -224,6 +238,7 @@ func (r *rover) GenerateResourceOverview() error {
 		}
 
 		if rc.Change != nil {
+			fmt.Printf("Addy: %v\n", id)
 			// Add resource to parent
 			if parent != "" {
 				// Create resource if doesn't exist
@@ -261,6 +276,8 @@ func (r *rover) GenerateResourceOverview() error {
 	rso.Resources = rs
 
 	r.RSO = rso
+
+	fmt.Printf("%v\n", r.RSO.Resources["module.backend.module.service[\"saga_job_cluster\"]"])
 
 	return nil
 }

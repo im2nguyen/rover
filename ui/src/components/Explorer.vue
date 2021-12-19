@@ -4,7 +4,7 @@
     <!-- {{ overview }} -->
     <File />
 
-    <div v-for="(resources, fileName) in map.files" :key="fileName">
+    <div v-for="(resources, fileName) in map.files['']" :key="fileName">
       <File
         :fileName="fileName"
         :resources="resources"
@@ -42,6 +42,7 @@ export default {
     } else {
       axios.get(`/api/map`).then((response) => {
         this.map = response.data;
+        console.log(this.map);
       });
     }
   },

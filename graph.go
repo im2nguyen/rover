@@ -105,82 +105,83 @@ func (r *rover) GenerateNodes() []Node {
 		Classes: "basename",
 	}
 
-	for file := range r.Map.Files {
-		// remove suffix and file path
-		fname := strings.ReplaceAll(file, fmt.Sprintf("%s/", basePath), "")
+	for module := range r.Map.Files {
+		for file := range r.Map.Files[module] {
+			// remove suffix and file path
+			fname := strings.ReplaceAll(file, fmt.Sprintf("%s/", basePath), "")
 
-		nmo = append(nmo, fname)
-		nodeMap[fname] = Node{
-			Data: NodeData{
-				ID:     fname,
-				Label:  fname,
-				Type:   "fname",
-				Parent: basePath,
-			},
-			Classes: "fname",
-		}
+			nmo = append(nmo, fname)
+			nodeMap[fname] = Node{
+				Data: NodeData{
+					ID:     fname,
+					Label:  fname,
+					Type:   "fname",
+					Parent: basePath,
+				},
+				Classes: "fname",
+			}
 
-		for id, rdata := range r.Map.Files[file] {
-			rid := strings.Split(id, ".")
+			for id, rdata := range r.Map.Files[module][file] {
+				rid := strings.Split(id, ".")
 
-			rtype := getPrimitiveType(rid[0])
+				rtype := getPrimitiveType(rid[0])
 
-			switch rtype {
-			case "module":
-				moduleMap[id] = fname
+				switch rtype {
+				case "module":
+					moduleMap[id] = fname
 
-				for id, crdata := range rdata.Children {
-					if string(crdata.ChangeAction) != "" {
-						nodeMap[id] = Node{
-							Data: NodeData{
-								ID:     id,
-								Change: string(crdata.ChangeAction),
-							},
+					for id, crdata := range rdata.Children {
+						if string(crdata.ChangeAction) != "" {
+							nodeMap[id] = Node{
+								Data: NodeData{
+									ID:     id,
+									Change: string(crdata.ChangeAction),
+								},
+							}
 						}
 					}
-				}
 
-				// You don't want to parse module because it will
-				// parse the module configuration and display everything
-				// even unused resources/data sources which may be confusing
+					// You don't want to parse module because it will
+					// parse the module configuration and display everything
+					// even unused resources/data sources which may be confusing
 
-				// nm, tempNmo := parseModule(rid[0], fname, id, rdata)
+					// nm, tempNmo := parseModule(rid[0], fname, id, rdata)
 
-				// for _, i := range tempNmo {
-				// 	nmo = append(nmo, i)
-				// 	nodeMap[i] = nm[i]
-				// }
-			case "var":
-				nm := parseVariable(id, fname, id, rdata)
+					// for _, i := range tempNmo {
+					// 	nmo = append(nmo, i)
+					// 	nodeMap[i] = nm[i]
+					// }
+				case "var":
+					nm := parseVariable(id, fname, id, rdata)
 
-				for k, v := range nm {
-					nmo = append(nmo, k)
-					nodeMap[k] = v
-				}
-			case "output":
-				nm := parseOutput(fname, id)
+					for k, v := range nm {
+						nmo = append(nmo, k)
+						nodeMap[k] = v
+					}
+				case "output":
+					nm := parseOutput(fname, id)
 
-				for k, v := range nm {
-					nmo = append(nmo, k)
-					nodeMap[k] = v
-				}
-			case "data":
-				nm, tempNmo := parseData(rid[1], rid[1], fname, id, rdata)
+					for k, v := range nm {
+						nmo = append(nmo, k)
+						nodeMap[k] = v
+					}
+				case "data":
+					nm, tempNmo := parseData(rid[1], rid[1], fname, id, rdata)
 
-				for _, i := range tempNmo {
-					nmo = append(nmo, i)
-					nodeMap[i] = nm[i]
-				}
-			default:
-				nm, tempNmo := parseResource(rid[0], rid[0], fname, id, rdata)
+					for _, i := range tempNmo {
+						nmo = append(nmo, i)
+						nodeMap[i] = nm[i]
+					}
+				default:
+					nm, tempNmo := parseResource(rid[0], rid[0], fname, id, rdata)
 
-				for _, i := range tempNmo {
-					nmo = append(nmo, i)
-					nodeMap[i] = nm[i]
+					for _, i := range tempNmo {
+						nmo = append(nmo, i)
+						nodeMap[i] = nm[i]
+					}
 				}
 			}
 		}
-
 	}
 
 	// Go through all module calls, add module resources
