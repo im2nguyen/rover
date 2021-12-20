@@ -208,8 +208,11 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		parent.Children[fname].Children[id] = dr
 	}
 
-	fmt.Printf("%v\n", r.RSO.Resources[parentModule])
+	fmt.Printf("%v\n", r.RSO.Resources[parentModule].Module.ChildModules)
+
 	for _, childModule := range r.RSO.Resources[parentModule].Module.ChildModules {
+
+		fmt.Printf("Child: %v\n", childModule.Address)
 
 		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 		configId := matchBrackets.ReplaceAllString(childModule.Address, "")
@@ -244,11 +247,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 
 		child, _ := tfconfig.LoadModule(childPath)
-
-		fmt.Printf("%v\n", id)
-		if r.RSO.Resources[id].ModuleConfig != nil {
-			fmt.Printf("%v\n", r.RSO.Resources[id].ModuleConfig)
-		}
 
 		r.GenerateModuleMap(m, id, childPath, child, config.ModuleCalls[mc.Name].Module)
 
@@ -297,6 +295,8 @@ func (r *rover) GenerateMap() error {
 	}
 
 	r.Map = mapObj
+
+	fmt.Printf("%v\n", r.Map.Root["main.tf"])
 
 	return nil
 }

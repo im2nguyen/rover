@@ -103,13 +103,18 @@ type OutputOverview struct {
 }*/
 
 func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfjson.StateModule, config *tfjson.ConfigModule, prior bool) {
-	reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+	//reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
 
 	// Loop through each resource type and populate graph during prior population
 	if prior {
 		for _, rc := range config.Resources {
 
-			id := fmt.Sprintf("%v.%v", module.Address, rc.Address)
+			id := rc.Address
+
+			if module.Address != "" {
+				id = fmt.Sprintf("%s.%s", module.Address, id)
+			}
+
 			//fmt.Printf("%v\n", id)
 			parent := module.Address
 
@@ -119,6 +124,12 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 
 			rs[id].Config = *rc
 			rs[id].DependsOn = rc.DependsOn
+
+			// If resource has parent, create parent if doesn't exist
+			if _, ok := rs[parent]; !ok {
+				rs[parent] = &ResourceOverview{}
+				rs[parent].Module = module
+			}
 
 			if rs[parent].Children == nil {
 				rs[parent].Children = make(map[string]*ResourceOverview)
@@ -132,18 +143,16 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 		id := rst.Address
 		var parent string
 
-		// Check if resource has parent
-		// part of module, resource w/ count or for_each
-		if reIsChild.MatchString(id) {
-			parent = module.Address
-			// If resource has parent, create parent if doesn't exist
-			if _, ok := rs[parent]; !ok {
-				rs[parent] = &ResourceOverview{}
-			}
+		parent = module.Address
+		// If resource has parent, create parent if doesn't exist
+		if _, ok := rs[parent]; !ok {
+			rs[parent] = &ResourceOverview{}
+			rs[parent].Module = module
 
-			if rs[parent].Children == nil {
-				rs[parent].Children = make(map[string]*ResourceOverview)
-			}
+		}
+
+		if rs[parent].Children == nil {
+			rs[parent].Children = make(map[string]*ResourceOverview)
 		}
 
 		if rst.AttributeValues != nil {
@@ -180,12 +189,12 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 
 		parent := module.Address
-		fmt.Printf("Parent: %v\n", parent)
 		id := childModule.Address
 		configId := matchBrackets.ReplaceAllString(id, "")
 		configId = strings.Split(configId, ".")[len(strings.Split(configId, "."))-1]
 
-		parent = module.Address
+		fmt.Printf("'%v' '%v' '%v'\n", parent, id, configId)
+
 		// If module has parent, create parent if doesn't exist
 		if _, ok := rs[parent]; !ok {
 			rs[parent] = &ResourceOverview{}
@@ -196,11 +205,15 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 			rs[parent].Children = make(map[string]*ResourceOverview)
 		}
 
-		fmt.Printf("%v - %v\n", id, configId)
 		rs[id] = &ResourceOverview{}
 		rs[id].Module = childModule
+
+		fmt.Printf("%v\n", rs[id].Module)
+
 		rs[id].ModuleConfig = config.ModuleCalls[configId]
+		fmt.Printf("Config: %v\n", rs[id].ModuleConfig)
 		rs[parent].Children[id] = rs[id]
+		fmt.Printf("Parent: %v Child: %v\n", parent, rs[parent].Children[id])
 
 		r.PopulateModuleState(rs, childModule, config.ModuleCalls[configId].Module, prior)
 	}
@@ -281,20 +294,16 @@ func (r *rover) GenerateResourceOverview() error {
 
 	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
 	// reGetParent := regexp.MustCompile(`^\w+\.\w+`)
-	reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+	//reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
 
 	// Loop through resource changes
 	for _, rc := range r.Plan.ResourceChanges {
 		id := rc.Address
-		var parent string
+		parent := rc.ModuleAddress
 
-		// Check if resource has parent
-		// part of module, resource w/ count or for_each
-		if reIsChild.MatchString(id) {
-			parent = rc.ModuleAddress
+		if rc.Change != nil {
 
-			//fmt.Printf("%v\n", parent)
-			// If resource has parent, create parent if doesn't exist
+			// If module has parent, create parent if doesn't exist
 			if _, ok := rs[parent]; !ok {
 				rs[parent] = &ResourceOverview{}
 			}
@@ -302,24 +311,20 @@ func (r *rover) GenerateResourceOverview() error {
 			if rs[parent].Children == nil {
 				rs[parent].Children = make(map[string]*ResourceOverview)
 			}
-		}
 
-		if rc.Change != nil {
 			// Add resource to parent
-			if parent != "" {
-				// Create resource if doesn't exist
-				if _, ok := rs[parent].Children[id]; !ok {
-					rs[parent].Children[id] = &ResourceOverview{}
-				}
-				rs[parent].Children[id].Change = *rc.Change
-
-				// Add type and name since it's missing
-				// TODO: Find long term fix
-				rs[parent].Children[id].Config.Name = strings.ReplaceAll(rc.Address, fmt.Sprintf("%s.%s.", parent, rc.Type), "")
-				rs[parent].Children[id].Config.Type = rc.Type
-			} else {
-				rs[rc.Address].Change = *rc.Change
+			// Create resource if doesn't exist
+			if _, ok := rs[id]; !ok {
+				rs[id] = &ResourceOverview{}
+				rs[parent].Children[id] = rs[id]
 			}
+			rs[id].Change = *rc.Change
+
+			// Add type and name since it's missing
+			// TODO: Find long term fix
+			rs[id].Config.Name = strings.ReplaceAll(rc.Address, fmt.Sprintf("%s.%s.", parent, rc.Type), "")
+			rs[id].Config.Type = rc.Type
+
 		}
 	}
 
