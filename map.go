@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	tfjson "github.com/hashicorp/terraform-json"
@@ -48,9 +50,7 @@ type Map struct {
 	RequiredCore      []string                                 `json:"required_core,omitempty"`
 	RequiredProviders map[string]*tfconfig.ProviderRequirement `json:"required_providers,omitempty"`
 	// ProviderConfigs   map[string]*tfconfig.ProviderConfig      `json:"provider_configs,omitempty"`
-	Modules map[string]*tfconfig.ModuleCall `json:"modules,omitempty"`
-
-	Files map[string]map[string]map[string]*Resource `json:"files,omitempty"`
+	Root map[string]*Resource `json:"root,omitempty"`
 }
 
 // Resource is a modified tfconfig.Resource
@@ -82,15 +82,11 @@ type ModuleCall struct {
 	Line    int    `json:"line,omitempty"`
 }
 
-func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentPath string, mapObj *Map, module *tfconfig.Module, config *tfjson.ConfigModule, files map[string]map[string]map[string]*Resource) {
+func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentPath string, module *tfconfig.Module, config *tfjson.ConfigModule) {
 
 	prefix := parentModule
 	if parentModule != "" {
 		prefix = fmt.Sprintf("%s.", prefix)
-	}
-
-	if _, ok := files[parentModule]; !ok {
-		files[parentModule] = make(map[string]map[string]*Resource)
 	}
 
 	// Loop through each resource type and populate graph
@@ -99,11 +95,11 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		fname := filepath.Base(variable.Pos.Filename)
 
 		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname, files)
+		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%svar.%s", prefix, variable.Name)
 
-		files[parentModule][fname][id] = &Resource{
+		parent.Children[fname].Children[id] = &Resource{
 			Type:     ResourceTypeVariable,
 			Name:     variable.Name,
 			Required: &variable.Required,
@@ -112,12 +108,9 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 		// Get variable sensitivity
 		if _, ok := config.Variables[variable.Name]; ok {
-			files[parentModule][fname][id].Sensitive = config.Variables[variable.Name].Sensitive
+			parent.Children[fname].Children[id].Sensitive = config.Variables[variable.Name].Sensitive
 		}
 
-		if parent != nil {
-			parent.Children[fname].Children[id] = files[parentModule][fname][id]
-		}
 	}
 
 	for _, output := range module.Outputs {
@@ -125,7 +118,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		fname := filepath.Base(output.Pos.Filename)
 
 		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname, files)
+		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%soutput.%s", prefix, output.Name)
 
@@ -148,11 +141,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			}
 		}
 
-		files[parentModule][fname][id] = oo
-
-		if parent != nil {
-			parent.Children[fname].Children[id] = files[parentModule][fname][id]
-		}
+		parent.Children[fname].Children[id] = oo
 	}
 
 	for _, resource := range module.ManagedResources {
@@ -160,7 +149,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		fname := filepath.Base(resource.Pos.Filename)
 
 		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname, files)
+		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%s%s.%s", prefix, resource.Type, resource.Name)
 
@@ -173,6 +162,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 
 		if _, ok := r.RSO.Resources[id]; ok {
+
 			if r.RSO.Resources[id].Change.Actions != nil {
 
 				re.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
@@ -183,10 +173,8 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			}
 		}
 
-		files[parentModule][fname][id] = re
-		if parent != nil {
-			parent.Children[fname].Children[id] = files[parentModule][fname][id]
-		}
+		parent.Children[fname].Children[id] = re
+
 	}
 
 	for _, data := range module.DataResources {
@@ -194,11 +182,11 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		fname := filepath.Base(data.Pos.Filename)
 
 		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname, files)
+		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%sdata.%s.%s", prefix, data.Type, data.Name)
 
-		files[parentModule][fname][id] = &Resource{
+		dr := &Resource{
 			Type:         ResourceTypeData,
 			Name:         data.Name,
 			ResourceType: data.Type,
@@ -206,40 +194,49 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			Line:         &data.Pos.Line,
 		}
 
-		if r.RSO.Resources[id].Change.Actions != nil {
-			files[parentModule][fname][id].ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
+		if _, ok := r.RSO.Resources[id]; ok {
 
-			if len(r.RSO.Resources[id].Change.Actions) > 1 {
-				files[parentModule][fname][id].ChangeAction = ActionReplace
+			if r.RSO.Resources[id].Change.Actions != nil {
+				dr.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
+
+				if len(r.RSO.Resources[id].Change.Actions) > 1 {
+					dr.ChangeAction = ActionReplace
+				}
 			}
 		}
 
-		if parent != nil {
-			parent.Children[fname].Children[id] = files[parentModule][fname][id]
-		}
+		parent.Children[fname].Children[id] = dr
 	}
 
-	for _, mc := range module.ModuleCalls {
+	fmt.Printf("%v\n", r.RSO.Resources[parentModule])
+	for _, childModule := range r.RSO.Resources[parentModule].Module.ChildModules {
+
+		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+		configId := matchBrackets.ReplaceAllString(childModule.Address, "")
+		configId = strings.Split(configId, ".")[len(strings.Split(configId, "."))-1]
+
+		mc := module.ModuleCalls[configId]
 
 		fname := filepath.Base(mc.Pos.Filename)
 
 		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname, files)
+		r.AddFileIfNotExists(parent, parentModule, fname)
 
-		id := fmt.Sprintf("%smodule.%s", prefix, mc.Name)
+		id := childModule.Address
+		name := strings.Split(id, ".")[len(strings.Split(id, "."))-1]
 
-		files[parentModule][fname][id] = &Resource{
+		fmt.Printf("%v\n", id)
+
+		m := &Resource{
 			Type:     ResourceTypeModule,
-			Name:     mc.Name,
+			Name:     name,
 			Source:   mc.Source,
 			Version:  mc.Version,
 			Line:     &mc.Pos.Line,
 			Children: map[string]*Resource{},
 		}
 
-		if parent != nil {
-			parent.Children[fname].Children[id] = files[parentModule][fname][id]
-		}
+		parent.Children[fname].Children[id] = m
 
 		childPath := mc.Source
 		if parentPath != "" {
@@ -248,30 +245,26 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 		child, _ := tfconfig.LoadModule(childPath)
 
-		r.GenerateModuleMap(files[parentModule][fname][id], id, childPath, mapObj, child, config.ModuleCalls[mc.Name].Module, files)
+		fmt.Printf("%v\n", id)
+		if r.RSO.Resources[id].ModuleConfig != nil {
+			fmt.Printf("%v\n", r.RSO.Resources[id].ModuleConfig)
+		}
+
+		r.GenerateModuleMap(m, id, childPath, child, config.ModuleCalls[mc.Name].Module)
 
 	}
 
 }
 
-func (r *rover) AddFileIfNotExists(module *Resource, parentModule string, fname string, files map[string]map[string]map[string]*Resource) {
+func (r *rover) AddFileIfNotExists(module *Resource, parentModule string, fname string) {
 
-	if _, ok := files[parentModule][fname]; !ok {
-		files[parentModule][fname] = make(map[string]*Resource)
+	if _, ok := module.Children[fname]; !ok {
 
-	}
-
-	if _, ok := files[parentModule][fname][fname]; !ok && parentModule != "" {
-
-		files[parentModule][fname][fname] = &Resource{
+		module.Children[fname] = &Resource{
 			Type:     ResourceTypeFile,
 			Name:     fname,
 			Children: map[string]*Resource{},
 		}
-	}
-
-	if module != nil {
-		module.Children[fname] = files[parentModule][fname][fname]
 	}
 }
 
@@ -285,19 +278,23 @@ func (r *rover) GenerateMap() error {
 		return r.GenerateMapNoConfig()
 	}
 
+	// Root module
+	rootModule := &Resource{
+		Type:     ResourceTypeModule,
+		Name:     "",
+		Source:   r.Config.Path,
+		Children: map[string]*Resource{},
+	}
+
+	r.GenerateModuleMap(rootModule, "", "", r.Config, r.Plan.Config.RootModule)
+
 	mapObj := &Map{
 		Path:              r.Config.Path,
 		RequiredProviders: r.Config.RequiredProviders,
 		RequiredCore:      r.Config.RequiredCore,
 		// ProviderConfigs:   module.ProviderConfigs,
-		Modules: make(map[string]*tfconfig.ModuleCall),
+		Root: rootModule.Children,
 	}
-
-	files := make(map[string]map[string]map[string]*Resource)
-
-	r.GenerateModuleMap(nil, "", "", mapObj, r.Config, r.Plan.Config.RootModule, files)
-
-	mapObj.Files = files
 
 	r.Map = mapObj
 

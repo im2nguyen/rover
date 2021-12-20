@@ -29,6 +29,7 @@ type ResourceOverview struct {
 	Change       tfjson.Change                `json:"change,omitempty"`
 	Config       tfjson.ConfigResource        `json:"config,omitempty"`
 	ModuleConfig *tfjson.ModuleCall           `json:"module_config,omitempty"`
+	Module       *tfjson.StateModule          `json:"module,omitempty"`
 	DependsOn    []string                     `json:"depends_on,omitempty"`
 	Children     map[string]*ResourceOverview `json:"children,omitempty"`
 }
@@ -40,7 +41,7 @@ type OutputOverview struct {
 	Config *tfjson.ConfigOutput `json:"config,omitempty"`
 }
 
-func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs map[string]*ResourceOverview, oo map[string]*OutputOverview, config *tfjson.ConfigModule) {
+/*func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs map[string]*ResourceOverview, oo map[string]*OutputOverview, config *tfjson.ConfigModule) {
 
 	// Loop through output configs
 	for outputName, output := range config.Outputs {
@@ -75,6 +76,7 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 	// Add modules
 	for moduleName, m := range config.ModuleCalls {
 
+		fmt.Printf("%v\n", moduleName)
 		mn := fmt.Sprintf("module.%s", moduleName)
 		if prefix != "" {
 			mn = fmt.Sprintf("%s.%s", prefix, mn)
@@ -98,10 +100,33 @@ func (r *rover) GenerateModuleOverview(prefix string, rso *ResourcesOverview, rs
 
 		r.GenerateModuleOverview(mn, rso, rs, oo, m.Module)
 	}
-}
+}*/
 
-func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfjson.StateModule, prior bool) {
+func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfjson.StateModule, config *tfjson.ConfigModule, prior bool) {
 	reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+
+	// Loop through each resource type and populate graph during prior population
+	if prior {
+		for _, rc := range config.Resources {
+
+			id := fmt.Sprintf("%v.%v", module.Address, rc.Address)
+			//fmt.Printf("%v\n", id)
+			parent := module.Address
+
+			if _, ok := rs[id]; !ok {
+				rs[id] = &ResourceOverview{}
+			}
+
+			rs[id].Config = *rc
+			rs[id].DependsOn = rc.DependsOn
+
+			if rs[parent].Children == nil {
+				rs[parent].Children = make(map[string]*ResourceOverview)
+			}
+
+			rs[parent].Children[id] = rs[id]
+		}
+	}
 
 	for _, rst := range module.Resources {
 		id := rst.Address
@@ -123,36 +148,61 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 
 		if rst.AttributeValues != nil {
 			// Add resource to parent
-			if parent != "" {
-				// Create resource if doesn't exist
-				if _, ok := rs[id]; !ok {
-					rs[id] = &ResourceOverview{}
-				}
+			// Create resource if doesn't exist
+			if _, ok := rs[id]; !ok {
+				rs[id] = &ResourceOverview{}
+			}
 
-				rs[parent].Children[id] = rs[id]
+			rs[parent].Children[id] = rs[id]
 
-				if prior {
-					rs[parent].Children[id].PriorState = rst.AttributeValues
-				} else {
-					rs[parent].Children[id].PlannedState = rst.AttributeValues
-				}
-				// Add type and name since it's missing
-				// TODO: Find long term fix
-				rs[parent].Children[id].Config.Name = strings.ReplaceAll(rst.Address, fmt.Sprintf("%s.%s.", parent, rst.Type), "")
-				rs[parent].Children[id].Config.Type = rst.Type
+			if prior {
+				rs[id].PriorState = rst.AttributeValues
 			} else {
-				if prior {
-					rs[id].PriorState = rst.AttributeValues
-				} else {
-					rs[id].PlannedState = rst.AttributeValues
+				rs[id].PlannedState = rst.AttributeValues
+			}
+			// Add type and name since it's missing
+			// TODO: Find long term fix
+			rs[id].Config.Name = strings.ReplaceAll(rst.Address, fmt.Sprintf("%s.%s.", parent, rst.Type), "")
+			rs[id].Config.Type = rst.Type
+		} else {
+			if prior {
+				rs[id].PriorState = rst.AttributeValues
+			} else {
+				rs[id].PlannedState = rst.AttributeValues
 
-				}
 			}
 		}
+
 	}
 
-	for _, mod := range module.ChildModules {
-		r.PopulateModuleState(rs, mod, prior)
+	for _, childModule := range module.ChildModules {
+
+		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+
+		parent := module.Address
+		fmt.Printf("Parent: %v\n", parent)
+		id := childModule.Address
+		configId := matchBrackets.ReplaceAllString(id, "")
+		configId = strings.Split(configId, ".")[len(strings.Split(configId, "."))-1]
+
+		parent = module.Address
+		// If module has parent, create parent if doesn't exist
+		if _, ok := rs[parent]; !ok {
+			rs[parent] = &ResourceOverview{}
+			rs[parent].Module = module
+		}
+
+		if rs[parent].Children == nil {
+			rs[parent].Children = make(map[string]*ResourceOverview)
+		}
+
+		fmt.Printf("%v - %v\n", id, configId)
+		rs[id] = &ResourceOverview{}
+		rs[id].Module = childModule
+		rs[id].ModuleConfig = config.ModuleCalls[configId]
+		rs[parent].Children[id] = rs[id]
+
+		r.PopulateModuleState(rs, childModule, config.ModuleCalls[configId].Module, prior)
 	}
 
 }
@@ -187,7 +237,23 @@ func (r *rover) GenerateResourceOverview() error {
 	rso.Variables = vars
 
 	oo := make(map[string]*OutputOverview)
-	r.GenerateModuleOverview("", rso, rs, oo, r.Plan.Config.RootModule)
+	//r.GenerateModuleOverview("", rso, rs, oo, r.Plan.Config.RootModule)
+
+	// Populate prior state
+	if r.Plan.PriorState != nil {
+		if r.Plan.PriorState.Values != nil {
+			if r.Plan.PriorState.Values.RootModule != nil {
+				r.PopulateModuleState(rs, r.Plan.PriorState.Values.RootModule, r.Plan.Config.RootModule, true)
+			}
+		}
+	}
+
+	// Populate planned state
+	if r.Plan.PlannedValues != nil {
+		if r.Plan.PlannedValues.RootModule != nil {
+			r.PopulateModuleState(rs, r.Plan.PlannedValues.RootModule, r.Plan.Config.RootModule, false)
+		}
+	}
 
 	// Loop through output changes
 	for outputName, output := range r.Plan.OutputChanges {
@@ -254,22 +320,6 @@ func (r *rover) GenerateResourceOverview() error {
 			} else {
 				rs[rc.Address].Change = *rc.Change
 			}
-		}
-	}
-
-	// Populate prior state
-	if r.Plan.PriorState != nil {
-		if r.Plan.PriorState.Values != nil {
-			if r.Plan.PriorState.Values.RootModule != nil {
-				r.PopulateModuleState(rs, r.Plan.PriorState.Values.RootModule, true)
-			}
-		}
-	}
-
-	// Populate planned state
-	if r.Plan.PlannedValues != nil {
-		if r.Plan.PlannedValues.RootModule != nil {
-			r.PopulateModuleState(rs, r.Plan.PlannedValues.RootModule, false)
 		}
 	}
 

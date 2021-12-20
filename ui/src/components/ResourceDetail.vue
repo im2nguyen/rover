@@ -51,7 +51,7 @@ c
           <!-- {{ resourceConfig }} -->
           <span
             v-if="
-              resourceConfig.isChild == 'rover-for-each-child-resource-true'
+              resourceConfig && resourceConfig.isChild == 'rover-for-each-child-resource-true'
             "
             class="is-child-resource"
             >Please check parent resource</span
@@ -172,48 +172,22 @@ export default {
     getAfterValue(val) {
       return val ? val : "null";
     },
-    getResourceConfig(resourceID, model, isChild) {
+    getResourceConfig(resourceID, model) {
       console.log(`resourceID: ${resourceID}`);
       console.log(model);
 
-      // Variables
-      if (resourceID.includes("var.")) {
-        return model.variables[resourceID.replace("var.", "")];
-      }
-      // Outputs
-      if (resourceID.includes("output.")) {
-        let id = resourceID.replace("output.", "");
-        if (model.output[id]) {
-          return model.output[id].config;
-        }
-      }
-      // Module
-      if (resourceID.startsWith("module.")) {
-        if (isChild) {
-          let id = resourceID.split(".").slice(2).join(".");
 
-          for (let val of model.module.resources) {
-            if (val.address == id) {
-              let trc = {};
-              if (val.for_each_expression) {
-                trc.for_each = val.for_each_expression;
-              }
-              if (val.count_expression) {
-                trc.count = val.count_expression;
-              }
-
-              return Object.assign(trc, val.expressions);
-            }
-          }
-        }
-
-        return {
-          source: model.source,
-          ...model.expressions,
-        };
+      // If module, return module config otherwise return resource config
+      if (model.resources[resourceID]?.module_config) {   
+        return model.resources[resourceID].module_config;
+      } else if (model.resources[resourceID]?.config) {
+        return model.resources[resourceID].config
       }
+
+
+      
       // Resource
-      if (isChild) return { isChild: "rover-for-each-child-resource-true" };
+      /*if (isChild) return { isChild: "rover-for-each-child-resource-true" };
       if (model.resources[resourceID] && model.resources[resourceID].config) {
         let trc = {};
         if (model.resources[resourceID].config.for_each_expression) {
@@ -229,9 +203,9 @@ export default {
       }
 
       // Defaults to returning empty object
-      return {};
+      return {};*/
     },
-    getResourceChange(resourceID, model, isChild) {
+    getResourceChange(resourceID, model) {
       // console.log(`resourceID: ${resourceID}`);
       // console.log(model);
 
@@ -269,31 +243,6 @@ export default {
           }
 
           // console.log(rc);
-
-          return rc;
-        }
-        return (rc = {});
-      }
-
-      if (isChild) {
-        if (model.children[resourceID] && model.children[resourceID].change) {
-          const c = model.children[resourceID].change;
-
-          // // console.log(c);
-
-          if (c.actions) {
-            rc.action = c.actions.length > 1 ? "replace" : c.actions[0];
-          }
-          rc.before = c.before ? c.before : null;
-          rc.after = c.after ? c.after : null;
-
-          if (c["after_unknown"]) {
-            for (let k of Object.keys(c["after_unknown"])) {
-              rc.after[k] = { unknown: true };
-            }
-          }
-
-          // // console.log(rc);
 
           return rc;
         }
@@ -392,7 +341,11 @@ export default {
       return this.resource.id.includes("var.");
     },
     resourceConfig() {
-      if (this.resource.id === "") {
+
+
+      return this.getResourceConfig(this.resource.id, this.overview)
+
+      /*if (this.resource.id === "") {
         return { action: "", before: {} };
       }
 
@@ -417,30 +370,12 @@ export default {
         );
       }
       return this.getResourceConfig(this.resource.id, this.overview, false);
-      // return this.isChild;
+      // return this.isChild;*/
     },
     resourceChange() {
-      if (this.resource.id === "") {
-        return { action: "", before: {} };
-      }
 
-      if (!this.isChild) {
-        return this.getResourceChange(this.resource.id, this.overview, false);
-      }
+      return this.getResourceChange(this.resource.id, this.overview);
 
-      if (this.resource.id.startsWith("module.")) {
-        return this.getResourceChange(
-          this.resource.id,
-          this.overview.resources[this.resource.parentID],
-          true
-        );
-      }
-
-      return this.getResourceChange(
-        this.resource.id,
-        this.overview.resources[this.resource.parentID],
-        true
-      );
     },
   },
   watch: {

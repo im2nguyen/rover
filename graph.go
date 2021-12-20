@@ -105,7 +105,7 @@ func (r *rover) GenerateNodes() []Node {
 		Classes: "basename",
 	}
 
-	for module := range r.Map.Files {
+	/*for module := range r.Map.Files {
 		for file := range r.Map.Files[module] {
 			// remove suffix and file path
 			fname := strings.ReplaceAll(file, fmt.Sprintf("%s/", basePath), "")
@@ -182,7 +182,7 @@ func (r *rover) GenerateNodes() []Node {
 				}
 			}
 		}
-	}
+	}*/
 
 	// Go through all module calls, add module resources
 	planned := r.Plan.PlannedValues.RootModule.ChildModules[0]
