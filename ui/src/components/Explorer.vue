@@ -42,7 +42,7 @@ export default {
     } else {
       axios.get(`/api/map`).then((response) => {
         this.map = response.data;
-        //console.log(this.map);
+        console.log(this.map);
       });
     }
   },

@@ -51,7 +51,7 @@ c
           <!-- {{ resourceConfig }} -->
           <span
             v-if="
-              resourceConfig && resourceConfig.isChild == 'rover-for-each-child-resource-true'
+              resourceConfig.isChild == 'rover-for-each-child-resource-true'
             "
             class="is-child-resource"
             >Please check parent resource</span
@@ -172,10 +172,11 @@ export default {
     getAfterValue(val) {
       return val ? val : "null";
     },
-    getResourceConfig(resourceID, model) {
+    getResourceConfig(resourceID, model, isChild) {
       console.log(`resourceID: ${resourceID}`);
       console.log(model);
 
+      if (isChild) return { isChild: "rover-for-each-child-resource-true" };
 
       // If module, return module config otherwise return resource config
       if (model.resources[resourceID]?.module_config) {   
@@ -184,6 +185,7 @@ export default {
         return model.resources[resourceID].config
       }
 
+      return {};
 
       
       // Resource
@@ -335,7 +337,8 @@ export default {
       }
     },
     isChild() {
-      return this.resource.id.match(/^\w+\.[\w-]+[[.]/g) != null;
+      console.log(this.resource.id + ": " + (this.resource.id.match(/\[[^[\]]*\]$/g) != null))
+      return this.resource.id.match(/\[[^[\]]*\]$/g) != null;
     },
     hasNoState() {
       return this.resource.id.includes("var.");
@@ -343,7 +346,7 @@ export default {
     resourceConfig() {
 
 
-      return this.getResourceConfig(this.resource.id, this.overview)
+      return this.getResourceConfig(this.resource.id, this.overview, this.isChild)
 
       /*if (this.resource.id === "") {
         return { action: "", before: {} };

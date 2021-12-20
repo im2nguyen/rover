@@ -171,6 +171,28 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 					re.ChangeAction = ActionReplace
 				}
 			}
+
+			for crName, cr := range r.RSO.Resources[id].Children {
+
+				if re.Children == nil {
+					re.Children = make(map[string]*Resource)
+				}
+
+				tcr := &Resource{
+					Type: ResourceTypeResource,
+					Name: crName,
+				}
+
+				if cr.Change.Actions != nil {
+					tcr.ChangeAction = Action(string(cr.Change.Actions[0]))
+
+					if len(cr.Change.Actions) > 1 {
+						tcr.ChangeAction = ActionReplace
+					}
+				}
+
+				re.Children[crName] = tcr
+			}
 		}
 
 		parent.Children[fname].Children[id] = re
@@ -208,11 +230,8 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		parent.Children[fname].Children[id] = dr
 	}
 
-	fmt.Printf("%v\n", r.RSO.Resources[parentModule].Module.ChildModules)
-
 	for _, childModule := range r.RSO.Resources[parentModule].Module.ChildModules {
-
-		fmt.Printf("Child: %v\n", childModule.Address)
+		childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
 		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 		configId := matchBrackets.ReplaceAllString(childModule.Address, "")
@@ -228,8 +247,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		id := childModule.Address
 		name := strings.Split(id, ".")[len(strings.Split(id, "."))-1]
 
-		fmt.Printf("%v\n", id)
-
 		m := &Resource{
 			Type:     ResourceTypeModule,
 			Name:     name,
@@ -239,8 +256,31 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			Children: map[string]*Resource{},
 		}
 
-		parent.Children[fname].Children[id] = m
+		// If module is child b/c of count or for_each
+		if childIndex.MatchString(id) {
+			pid := childIndex.ReplaceAllString(id, "")
+			pname := strings.Split(pid, ".")[len(strings.Split(pid, "."))-1]
 
+			// If parent does not exist, make it
+			if _, ok := parent.Children[fname].Children[pid]; !ok {
+				p := &Resource{
+					Type:     ResourceTypeModule,
+					Name:     pname,
+					Source:   mc.Source,
+					Version:  mc.Version,
+					Line:     &mc.Pos.Line,
+					Children: map[string]*Resource{},
+				}
+
+				parent.Children[fname].Children[pid] = p
+			}
+
+			parent.Children[fname].Children[pid].Children[id] = m
+
+		} else {
+
+			parent.Children[fname].Children[id] = m
+		}
 		childPath := mc.Source
 		if parentPath != "" {
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
@@ -295,8 +335,6 @@ func (r *rover) GenerateMap() error {
 	}
 
 	r.Map = mapObj
-
-	fmt.Printf("%v\n", r.Map.Root["main.tf"])
 
 	return nil
 }
