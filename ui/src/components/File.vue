@@ -44,7 +44,7 @@ export default {
   },
   methods: {
     selectResource(resourceID) {
-      this.$emit("selectResource", `${this.fileName}/${resourceID}`);
+      this.$emit("selectResource", resourceID);
     },
   },
   computed: {
@@ -56,6 +56,7 @@ export default {
       const sorted = Object.entries(this.resources).sort(
         (x, y) => x[1].line - y[1].line
       );
+      console.log(sorted);
 
       // Sort by name
       // const sorted = Object.entries(this.resources).sort(

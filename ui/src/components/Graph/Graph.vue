@@ -398,6 +398,7 @@ export default {
         var n = event.target;
 
         let node = { id: n.data().id, in: [], out: [] };
+        
         const ce = n.connectedEdges();
         for (let i = 0; i < ce.length; i += 1) {
           let ed = ce[i].data();
@@ -426,16 +427,7 @@ export default {
           vm.highlightNodePaths(n);
         }
 
-        const na = n.ancestors();
-        let nodeID = [];
-
-        for (let i = na.length - 1; i > 0; i--) {
-          nodeID.push(na[i].id());
-        }
-
-        nodeID.push(n.id());
-
-        vm.$emit("getNode", nodeID.join("/"));
+        vm.$emit("getNode", node.id);
       });
 
       // Add hover event
@@ -516,6 +508,7 @@ export default {
     } else {
       axios.get(`/api/graph`).then((response) => {
         this.graph = response.data;
+        console.log(this.graph)
         this.renderGraph();
       });
     }

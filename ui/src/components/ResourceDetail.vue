@@ -173,47 +173,23 @@ export default {
       return val ? val : "null";
     },
     getResourceConfig(resourceID, model, isChild) {
-      // console.log(`resourceID: ${resourceID}`);
-      // console.log(model);
+      console.log(`resourceID: ${resourceID}`);
+      console.log(model);
 
-      // Variables
-      if (resourceID.startsWith("var.")) {
-        return model.variables[resourceID.replace("var.", "")];
-      }
-      // Outputs
-      if (resourceID.startsWith("output.")) {
-        let id = resourceID.replace("output.", "");
-        if (model.output[id]) {
-          return model.output[id].config;
-        }
-      }
-      // Module
-      if (resourceID.startsWith("module.")) {
-        if (isChild) {
-          let id = resourceID.split(".").slice(2).join(".");
-
-          for (let val of model.module.resources) {
-            if (val.address == id) {
-              let trc = {};
-              if (val.for_each_expression) {
-                trc.for_each = val.for_each_expression;
-              }
-              if (val.count_expression) {
-                trc.count = val.count_expression;
-              }
-
-              return Object.assign(trc, val.expressions);
-            }
-          }
-        }
-
-        return {
-          source: model.source,
-          ...model.expressions,
-        };
-      }
-      // Resource
       if (isChild) return { isChild: "rover-for-each-child-resource-true" };
+
+      // If module, return module config otherwise return resource config
+      if (model.resources[resourceID]?.module_config) {   
+        return model.resources[resourceID].module_config;
+      } else if (model.resources[resourceID]?.config) {
+        return model.resources[resourceID].config
+      }
+
+      return {};
+
+      
+      // Resource
+      /*if (isChild) return { isChild: "rover-for-each-child-resource-true" };
       if (model.resources[resourceID] && model.resources[resourceID].config) {
         let trc = {};
         if (model.resources[resourceID].config.for_each_expression) {
@@ -229,20 +205,20 @@ export default {
       }
 
       // Defaults to returning empty object
-      return {};
+      return {};*/
     },
-    getResourceChange(resourceID, model, isChild) {
+    getResourceChange(resourceID, model) {
       // console.log(`resourceID: ${resourceID}`);
       // console.log(model);
 
       let rc = {};
 
-      if (resourceID.startsWith("var.")) {
+      if (resourceID.includes("var.")) {
         return (rc = {});
       }
-      if (resourceID.startsWith("output.")) {
+      if (resourceID.includes("output.")) {
         let id = resourceID.replace("output.", "");
-        // let id = resourceID;
+        //let id = resourceID;
         if (model.output[id] && model.output[id].change) {
           const c = model.output[id].change;
 
@@ -269,31 +245,6 @@ export default {
           }
 
           // console.log(rc);
-
-          return rc;
-        }
-        return (rc = {});
-      }
-
-      if (isChild) {
-        if (model.children[resourceID] && model.children[resourceID].change) {
-          const c = model.children[resourceID].change;
-
-          // // console.log(c);
-
-          if (c.actions) {
-            rc.action = c.actions.length > 1 ? "replace" : c.actions[0];
-          }
-          rc.before = c.before ? c.before : null;
-          rc.after = c.after ? c.after : null;
-
-          if (c["after_unknown"]) {
-            for (let k of Object.keys(c["after_unknown"])) {
-              rc.after[k] = { unknown: true };
-            }
-          }
-
-          // // console.log(rc);
 
           return rc;
         }
@@ -334,16 +285,14 @@ export default {
       const rArray = resource.split(".");
       const lastIndex = rArray.length - 1;
 
-      let resourceID = rArray.slice(2).join(".");
-      let parentID = rArray.slice(2, 4).join(".").split("[")[0];
+      let resourceID = rArray.join(".");
 
       // If no config version..
       if (this.resourceID.startsWith("Resources/")) {
         resourceID = rArray.slice(1).join(".");
-        parentID = rArray.slice(1, 4).join(".").split("[")[0];
       }
 
-      if (
+      /*if (
         rArray[lastIndex - 1] == "output" &&
         !resourceID.startsWith("output.")
       ) {
@@ -361,13 +310,11 @@ export default {
       // If resourceID is a child only (no . in id)
       if (resourceID.match(/^[\w-]+[[]/g) != null) {
         resourceID = rArray.slice(1).join(".");
-        parentID = rArray.slice(1, 4).join(".").split("[")[0];
-      }
+      }*/
 
       return {
         fileName: `${rArray[0]}.${rArray[1]}`,
         id: resourceID,
-        parentID: parentID,
         resource_type: rArray[lastIndex - 1],
         resource_name: rArray[lastIndex],
       };
@@ -386,13 +333,17 @@ export default {
       }
     },
     isChild() {
-      return this.resource.id.match(/^\w+\.[\w-]+[[.]/g) != null;
+      return this.resource.id.match(/\[[^[\]]*\]$/g) != null;
     },
     hasNoState() {
-      return this.resource.id.startsWith("var.");
+      return this.resource.id.includes("var.");
     },
     resourceConfig() {
-      if (this.resource.id === "") {
+
+
+      return this.getResourceConfig(this.resource.id, this.overview, this.isChild)
+
+      /*if (this.resource.id === "") {
         return { action: "", before: {} };
       }
 
@@ -417,30 +368,12 @@ export default {
         );
       }
       return this.getResourceConfig(this.resource.id, this.overview, false);
-      // return this.isChild;
+      // return this.isChild;*/
     },
     resourceChange() {
-      if (this.resource.id === "") {
-        return { action: "", before: {} };
-      }
 
-      if (!this.isChild) {
-        return this.getResourceChange(this.resource.id, this.overview, false);
-      }
+      return this.getResourceChange(this.resource.id, this.overview);
 
-      if (this.resource.id.startsWith("module.")) {
-        return this.getResourceChange(
-          this.resource.id,
-          this.overview.resources[this.resource.parentID],
-          true
-        );
-      }
-
-      return this.getResourceChange(
-        this.resource.id,
-        this.overview.resources[this.resource.parentID],
-        true
-      );
     },
   },
   watch: {
@@ -459,6 +392,7 @@ export default {
     } else {
       axios.get(`/api/rso`).then((response) => {
         this.overview = response.data;
+        console.log(this.overview);
       });
     }
   },

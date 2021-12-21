@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-
-	tfjson "github.com/hashicorp/terraform-json"
 )
 
 const (
@@ -33,12 +31,12 @@ type Node struct {
 
 // NodeData TODO
 type NodeData struct {
-	ID          string `json:"id"`
-	Label       string `json:"label,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Parent      string `json:"parent,omitempty"`
-	ParentColor string `json:"parentColor,omitempty"`
-	Change      string `json:"change,omitempty"`
+	ID          string       `json:"id"`
+	Label       string       `json:"label,omitempty"`
+	Type        ResourceType `json:"type,omitempty"`
+	Parent      string       `json:"parent,omitempty"`
+	ParentColor string       `json:"parentColor,omitempty"`
+	Change      string       `json:"change,omitempty"`
 }
 
 // Edge TODO
@@ -87,11 +85,90 @@ func (r *rover) GenerateGraph() error {
 	return nil
 }
 
-func addModules(moduleMap map[string]string, nodeMap map[string]Node, module *tfjson.StateModule) []string {
+func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, resources map[string]*Resource) []string {
 
 	nmo := []string{}
 
-	for _, childModule := range module.ChildModules {
+	for id, re := range resources {
+
+		if re.Type == ResourceTypeResource || re.Type == ResourceTypeData {
+
+			mid := fmt.Sprintf("%v.%v", parent, re.ResourceType)
+			mid = strings.TrimPrefix(mid, fmt.Sprintf("%v.", base))
+			mid = strings.TrimSuffix(mid, ".")
+
+			l := strings.Split(mid, ".")
+			label := l[len(l)-1]
+
+			midParent := parent
+			if midParent == mid {
+				midParent = strings.TrimSuffix(midParent, fmt.Sprintf(".%v", label))
+			}
+
+			// Append resource type
+			nmo = append(nmo, mid)
+			nodeMap[mid] = Node{
+				Data: NodeData{
+					ID:          mid,
+					Label:       label,
+					Type:        re.Type,
+					Parent:      midParent,
+					ParentColor: getResourceColor(nodeMap[parent].Data.Type),
+				},
+				Classes: fmt.Sprintf("%s-type", re.Type),
+			}
+
+			mrChange := string(re.ChangeAction)
+
+			// Append resource name
+			nmo = append(nmo, id)
+			nodeMap[id] = Node{
+				Data: NodeData{
+					ID:          id,
+					Label:       re.Name,
+					Type:        re.Type,
+					Parent:      mid,
+					ParentColor: getResourceColor(nodeMap[parent].Data.Type),
+					Change:      mrChange,
+				},
+				Classes: fmt.Sprintf("%s-name %s", re.Type, mrChange),
+			}
+
+			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
+
+		} else if re.Type == ResourceTypeFile {
+			nmo = append(nmo, r.addNodes(base, parent, nodeMap, re.Children)...)
+		} else {
+
+			label := strings.TrimPrefix(id, parent)
+			label = strings.TrimPrefix(label, ".")
+			label = strings.TrimPrefix(label, "module.")
+			label = strings.TrimPrefix(label, "local.")
+			label = strings.TrimPrefix(label, "output.")
+			label = strings.TrimPrefix(label, "var.")
+
+			//fmt.Printf("%v - %v\n", id, re.Type)
+
+			nmo = append(nmo, id)
+			nodeMap[id] = Node{
+				Data: NodeData{
+					ID:          id,
+					Label:       label,
+					Type:        re.Type,
+					Parent:      parent,
+					ParentColor: getResourceColor(nodeMap[parent].Data.Type),
+				},
+
+				Classes: getResourceClass(re.Type),
+			}
+
+			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
+
+		}
+
+	}
+
+	/*for _, childModule := range module.ChildModules {
 
 		fname := moduleMap[childModule.Address]
 		if fname == "" {
@@ -153,10 +230,11 @@ func addModules(moduleMap map[string]string, nodeMap map[string]Node, module *tf
 		}
 
 		// Append submodules
-		nmo = append(nmo, addModules(moduleMap, nodeMap, childModule)...)
-	}
+
+	}*/
 
 	return nmo
+
 }
 
 // GenerateNodes -
@@ -164,8 +242,6 @@ func (r *rover) GenerateNodes() []Node {
 
 	nodeMap := make(map[string]Node)
 	nmo := []string{}
-
-	moduleMap := make(map[string]string)
 
 	basePath := strings.ReplaceAll(r.Map.Path, "./", "")
 
@@ -179,7 +255,7 @@ func (r *rover) GenerateNodes() []Node {
 		Classes: "basename",
 	}
 
-	for file := range r.Map.Files {
+	/*for file := range r.Map.Root {
 		// remove suffix and file path
 		fname := strings.ReplaceAll(file, fmt.Sprintf("%s/", basePath), "")
 
@@ -194,7 +270,7 @@ func (r *rover) GenerateNodes() []Node {
 			Classes: "fname",
 		}
 
-		for id, rdata := range r.Map.Files[file] {
+		for id, rdata := range r.Map.Root[file] {
 			rid := strings.Split(id, ".")
 
 			rtype := getPrimitiveType(rid[0])
@@ -254,11 +330,11 @@ func (r *rover) GenerateNodes() []Node {
 			}
 		}
 
-	}
+	}*/
 
-	// Go through all module calls, add module resources
+	// Go through all modules and nodes
 
-	nmo = append(nmo, addModules(moduleMap, nodeMap, r.Plan.PlannedValues.RootModule)...)
+	nmo = append(nmo, r.addNodes(basePath, basePath, nodeMap, r.Map.Root)...)
 
 	// Get module outputs
 	config := r.Plan.Config.RootModule
@@ -284,7 +360,6 @@ func (r *rover) GenerateNodes() []Node {
 			for _, dependsOnR := range v.Expression.References {
 				if strings.HasPrefix(dependsOnR, "local.") {
 					// Append local variable
-					nmo = append(nmo, dependsOnR)
 					nodeMap[dependsOnR] = Node{
 						Data: NodeData{
 							ID:     dependsOnR,
@@ -304,7 +379,6 @@ func (r *rover) GenerateNodes() []Node {
 			for _, dependsOnR := range reValues.References {
 				if strings.HasPrefix(dependsOnR, "local.") {
 					// Append local variable
-					nmo = append(nmo, dependsOnR)
 					nodeMap[dependsOnR] = Node{
 						Data: NodeData{
 							ID:     dependsOnR,
@@ -506,16 +580,15 @@ func (r *rover) GenerateEdges() []Edge {
 	return edges
 }
 
-func getResourceColor(resourceID string) string {
-	rID := strings.Split(resourceID, ".")
-	switch rID[0] {
-	case "module":
+func getResourceColor(t ResourceType) string {
+	switch t {
+	case ResourceTypeModule:
 		return MODULE_BG_COLOR
-	case "data":
+	case ResourceTypeData:
 		return DATA_COLOR
-	case "output":
+	case ResourceTypeOutput:
 		return OUTPUT_COLOR
-	case "var":
+	case ResourceTypeVariable:
 		return VARIABLE_COLOR
 	}
 	// return RESOURCE_COLOR
@@ -535,19 +608,26 @@ func getPrimitiveType(resourceType string) string {
 	return "resource"
 }
 
-func getResourceClass(resourceType string) string {
+func getResourceClass(resourceType ResourceType) string {
 	switch resourceType {
-	case
-		"data",
-		"output",
-		"var",
-		"local":
-		return resourceType
+
+	case ResourceTypeData:
+		return "data-type"
+	case ResourceTypeOutput:
+		return "output"
+	case ResourceTypeVariable:
+		return "variable"
+	case ResourceTypeFile:
+		return "fname"
+	case ResourceTypeLocal:
+		return "locals"
+	case ResourceTypeModule:
+		return "module"
 	}
-	return "resource"
+	return "resource-type"
 }
 
-func parseResource(rid string, rtype string, parentID string, id string, rdata *Resource) (map[string]Node, []string) {
+/*func parseResource(rid string, rtype string, parentID string, id string, rdata *Resource) (map[string]Node, []string) {
 	nodeMap := make(map[string]Node)
 	nmo := []string{}
 
@@ -721,4 +801,4 @@ func parseModule(rtype string, basePath string, mID string, rdata *Resource) (ma
 	// fmt.Printf("%+v\n", nodeMap)
 
 	return nodeMap, nmo
-}
+}*/
