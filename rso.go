@@ -105,32 +105,37 @@ func (r *rover) PopulateConfigs(parent string, rso *ResourcesOverview, rs map[st
 }
 
 func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfjson.StateModule, config *tfjson.ConfigModule, prior bool) {
+	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
 	// Loop through each resource type and populate states
 	for _, rst := range module.Resources {
 		id := rst.Address
 		parent := module.Address
-		// Check if resource has parent
-		// part of module, resource w/ count or for_each
-		if childIndex.MatchString(id) {
-			parent = childIndex.ReplaceAllString(id, "")
-			// If resource has parent, create parent if doesn't exist
-			if _, ok := rs[parent]; !ok {
-				rs[parent] = &ResourceOverview{}
-				rs[parent].Children = make(map[string]*ResourceOverview)
-			}
-
-			if rs[parent].Module == nil {
-				rs[parent].Module = module
-			}
-		}
 
 		if rst.AttributeValues != nil {
+			configId := matchBrackets.ReplaceAllString(id, "")
+
 			// Add resource to parent
 			// Create resource if doesn't exist
 			if _, ok := rs[id]; !ok {
 				rs[id] = &ResourceOverview{}
+			}
+
+			// Check if resource has parent
+			// part of, resource w/ count or for_each
+			if childIndex.MatchString(id) {
+				parent = childIndex.ReplaceAllString(id, "")
+				// If resource has parent, create parent if doesn't exist
+				if _, ok := rs[parent]; !ok {
+					rs[parent] = &ResourceOverview{}
+					rs[parent].Children = make(map[string]*ResourceOverview)
+				}
+
+				rs[module.Address].Children[parent] = rs[parent]
+				rs[parent].Config = rs[configId].Config
+			} else {
+				rs[id].Config = rs[configId].Config
 			}
 
 			//fmt.Printf("%v - %v\n", id, parent)
@@ -141,10 +146,7 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 			} else {
 				rs[id].PlannedState = rst.AttributeValues
 			}
-			// Add type and name since it's missing
-			// TODO: Find long term fix
-			rs[id].Config.Name = strings.ReplaceAll(rst.Address, fmt.Sprintf("%s.%s.", parent, rst.Type), "")
-			rs[id].Config.Type = rst.Type
+
 		} else {
 			if prior {
 				rs[id].PriorState = rst.AttributeValues
@@ -167,7 +169,6 @@ func (r *rover) PopulateModuleState(rs map[string]*ResourceOverview, module *tfj
 
 		if childIndex.MatchString(id) {
 			parent = childIndex.ReplaceAllString(id, "")
-			fmt.Printf("Parent: %v Child: %v\n", parent, id)
 		}
 
 		//fmt.Printf("'%v' '%v' '%v'\n", parent, id, configId)

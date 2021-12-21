@@ -16,6 +16,7 @@ type Action string
 
 const (
 	ResourceTypeFile     ResourceType = "file"
+	ResourceTypeLocal    ResourceType = "locals"
 	ResourceTypeVariable ResourceType = "variable"
 	ResourceTypeOutput   ResourceType = "output"
 	ResourceTypeResource ResourceType = "resource"
@@ -142,26 +143,25 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 
 		parent.Children[fname].Children[id] = oo
+
 	}
 
 	for _, resource := range module.ManagedResources {
-
 		fname := filepath.Base(resource.Pos.Filename)
 
 		// Populate with file if doesn't exist
 		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%s%s.%s", prefix, resource.Type, resource.Name)
-
-		re := &Resource{
-			Type:         ResourceTypeResource,
-			Name:         resource.Name,
-			ResourceType: resource.Type,
-			Provider:     resource.Provider.Name,
-			Line:         &resource.Pos.Line,
-		}
-
 		if _, ok := r.RSO.Resources[id]; ok {
+
+			re := &Resource{
+				Type:         ResourceTypeResource,
+				Name:         resource.Name,
+				ResourceType: resource.Type,
+				Provider:     resource.Provider.Name,
+				Line:         &resource.Pos.Line,
+			}
 
 			if r.RSO.Resources[id].Change.Actions != nil {
 
@@ -180,7 +180,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 				tcr := &Resource{
 					Type: ResourceTypeResource,
-					Name: crName,
+					Name: cr.Config.Name,
 				}
 
 				if cr.Change.Actions != nil {
@@ -193,9 +193,25 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 				re.Children[crName] = tcr
 			}
-		}
 
-		parent.Children[fname].Children[id] = re
+			// Add locals
+			for _, reValues := range r.RSO.Resources[id].Config.Expressions {
+				for _, dependsOnR := range reValues.References {
+					if strings.HasPrefix(dependsOnR, "local.") {
+						// Append local variable
+						l := &Resource{
+							Type: ResourceTypeLocal,
+							Name: strings.TrimPrefix(dependsOnR, "local."),
+						}
+
+						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
+						parent.Children[fname].Children[lid] = l
+					}
+				}
+			}
+
+			parent.Children[fname].Children[id] = re
+		}
 
 	}
 
@@ -208,15 +224,15 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 		id := fmt.Sprintf("%sdata.%s.%s", prefix, data.Type, data.Name)
 
-		dr := &Resource{
-			Type:         ResourceTypeData,
-			Name:         data.Name,
-			ResourceType: data.Type,
-			Provider:     data.Provider.Name,
-			Line:         &data.Pos.Line,
-		}
-
 		if _, ok := r.RSO.Resources[id]; ok {
+
+			dr := &Resource{
+				Type:         ResourceTypeData,
+				Name:         data.Name,
+				ResourceType: data.Type,
+				Provider:     data.Provider.Name,
+				Line:         &data.Pos.Line,
+			}
 
 			if r.RSO.Resources[id].Change.Actions != nil {
 				dr.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
@@ -225,12 +241,14 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 					dr.ChangeAction = ActionReplace
 				}
 			}
-		}
 
-		parent.Children[fname].Children[id] = dr
+			parent.Children[fname].Children[id] = dr
+
+		}
 	}
 
 	for _, childModule := range r.RSO.Resources[parentModule].Module.ChildModules {
+
 		childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
 		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
@@ -281,6 +299,27 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 			parent.Children[fname].Children[id] = m
 		}
+
+		// Add locals
+		cid := matchBrackets.ReplaceAllString(childModule.Address, "")
+		if _, ok := r.RSO.Resources[cid]; ok {
+			for _, reValues := range r.RSO.Resources[cid].ModuleConfig.Expressions {
+				for _, dependsOnR := range reValues.References {
+					if strings.HasPrefix(dependsOnR, "local.") {
+						// Append local variable
+						l := &Resource{
+							Type: ResourceTypeLocal,
+							Name: strings.TrimPrefix(dependsOnR, "local."),
+						}
+
+						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
+						//fmt.Printf("%v\n", lid)
+						parent.Children[fname].Children[lid] = l
+					}
+				}
+			}
+		}
+
 		childPath := mc.Source
 		if parentPath != "" {
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)

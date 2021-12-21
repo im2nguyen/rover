@@ -285,16 +285,14 @@ export default {
       const rArray = resource.split(".");
       const lastIndex = rArray.length - 1;
 
-      let resourceID = rArray.slice(2).join(".");
-      let parentID = rArray.slice(2, 4).join(".").split("[")[0];
+      let resourceID = rArray.join(".");
 
       // If no config version..
       if (this.resourceID.startsWith("Resources/")) {
         resourceID = rArray.slice(1).join(".");
-        parentID = rArray.slice(1, 4).join(".").split("[")[0];
       }
 
-      if (
+      /*if (
         rArray[lastIndex - 1] == "output" &&
         !resourceID.startsWith("output.")
       ) {
@@ -312,13 +310,11 @@ export default {
       // If resourceID is a child only (no . in id)
       if (resourceID.match(/^[\w-]+[[]/g) != null) {
         resourceID = rArray.slice(1).join(".");
-        parentID = rArray.slice(1, 4).join(".").split("[")[0];
-      }
+      }*/
 
       return {
         fileName: `${rArray[0]}.${rArray[1]}`,
         id: resourceID,
-        parentID: parentID,
         resource_type: rArray[lastIndex - 1],
         resource_name: rArray[lastIndex],
       };
@@ -337,7 +333,6 @@ export default {
       }
     },
     isChild() {
-      console.log(this.resource.id + ": " + (this.resource.id.match(/\[[^[\]]*\]$/g) != null))
       return this.resource.id.match(/\[[^[\]]*\]$/g) != null;
     },
     hasNoState() {
