@@ -242,6 +242,22 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 				}
 			}
 
+			// Add locals
+			for _, reValues := range r.RSO.Resources[id].Config.Expressions {
+				for _, dependsOnR := range reValues.References {
+					if strings.HasPrefix(dependsOnR, "local.") {
+						// Append local variable
+						l := &Resource{
+							Type: ResourceTypeLocal,
+							Name: strings.TrimPrefix(dependsOnR, "local."),
+						}
+
+						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
+						parent.Children[fname].Children[lid] = l
+					}
+				}
+			}
+
 			parent.Children[fname].Children[id] = dr
 
 		}
