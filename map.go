@@ -130,16 +130,16 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			Line:      &output.Pos.Line,
 		}
 
-		if _, ok := r.RSO.Outputs[output.Name]; ok {
-			if r.RSO.Outputs[output.Name].Change != nil {
-				if r.RSO.Outputs[output.Name].Change.Actions != nil {
-					oo.ChangeAction = Action(string(r.RSO.Outputs[output.Name].Change.Actions[0]))
+		if _, ok := r.RSO.States[id]; ok {
+			//if ok = r.RSO.Outputs[output.Name].Change != nil {
+			if r.RSO.States[id].Change.Actions != nil {
+				oo.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
 
-					if len(r.RSO.Outputs[output.Name].Change.Actions) > 1 {
-						oo.ChangeAction = ActionReplace
-					}
+				if len(r.RSO.States[id].Change.Actions) > 1 {
+					oo.ChangeAction = ActionReplace
 				}
 			}
+			//}
 		}
 
 		parent.Children[fname].Children[id] = oo
@@ -153,7 +153,8 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		r.AddFileIfNotExists(parent, parentModule, fname)
 
 		id := fmt.Sprintf("%s%s.%s", prefix, resource.Type, resource.Name)
-		if _, ok := r.RSO.Resources[id]; ok {
+		if _, ok := r.RSO.States[id]; ok {
+			configId := r.RSO.States[id].ConfigId
 
 			re := &Resource{
 				Type:         ResourceTypeResource,
@@ -163,16 +164,16 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 				Line:         &resource.Pos.Line,
 			}
 
-			if r.RSO.Resources[id].Change.Actions != nil {
+			if r.RSO.States[id].Change.Actions != nil {
 
-				re.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
+				re.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
 
-				if len(r.RSO.Resources[id].Change.Actions) > 1 {
+				if len(r.RSO.States[id].Change.Actions) > 1 {
 					re.ChangeAction = ActionReplace
 				}
 			}
 
-			for crName, cr := range r.RSO.Resources[id].Children {
+			for crName, cr := range r.RSO.States[id].Children {
 
 				if re.Children == nil {
 					re.Children = make(map[string]*Resource)
@@ -180,7 +181,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 				tcr := &Resource{
 					Type: ResourceTypeResource,
-					Name: cr.Config.Name,
+					Name: strings.TrimPrefix(crName, fmt.Sprintf("%s%s.", prefix, resource.Type)),
 				}
 
 				if cr.Change.Actions != nil {
@@ -195,7 +196,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 			}
 
 			// Add locals
-			for _, reValues := range r.RSO.Resources[id].Config.Expressions {
+			for _, reValues := range r.RSO.Configs[configId].ResourceConfig.Expressions {
 				for _, dependsOnR := range reValues.References {
 					if strings.HasPrefix(dependsOnR, "local.") {
 						// Append local variable
@@ -224,7 +225,8 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 
 		id := fmt.Sprintf("%sdata.%s.%s", prefix, data.Type, data.Name)
 
-		if _, ok := r.RSO.Resources[id]; ok {
+		if _, ok := r.RSO.States[id]; ok {
+			configId := r.RSO.States[id].ConfigId
 
 			dr := &Resource{
 				Type:         ResourceTypeData,
@@ -234,16 +236,16 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 				Line:         &data.Pos.Line,
 			}
 
-			if r.RSO.Resources[id].Change.Actions != nil {
-				dr.ChangeAction = Action(string(r.RSO.Resources[id].Change.Actions[0]))
+			if r.RSO.States[id].Change.Actions != nil {
+				dr.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
 
-				if len(r.RSO.Resources[id].Change.Actions) > 1 {
+				if len(r.RSO.States[id].Change.Actions) > 1 {
 					dr.ChangeAction = ActionReplace
 				}
 			}
 
 			// Add locals
-			for _, reValues := range r.RSO.Resources[id].Config.Expressions {
+			for _, reValues := range r.RSO.Configs[configId].ResourceConfig.Expressions {
 				for _, dependsOnR := range reValues.References {
 					if strings.HasPrefix(dependsOnR, "local.") {
 						// Append local variable
@@ -263,7 +265,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 	}
 
-	for _, childModule := range r.RSO.Resources[parentModule].Module.ChildModules {
+	for _, childModule := range r.RSO.States[parentModule].Module.ChildModules {
 
 		childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
@@ -317,9 +319,10 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 		}
 
 		// Add locals
-		cid := matchBrackets.ReplaceAllString(childModule.Address, "")
-		if _, ok := r.RSO.Resources[cid]; ok {
-			for _, reValues := range r.RSO.Resources[cid].ModuleConfig.Expressions {
+		configId = matchBrackets.ReplaceAllString(childModule.Address, "")
+
+		if _, ok := r.RSO.Configs[configId]; ok {
+			for _, reValues := range r.RSO.Configs[configId].ModuleConfig.Expressions {
 				for _, dependsOnR := range reValues.References {
 					if strings.HasPrefix(dependsOnR, "local.") {
 						// Append local variable

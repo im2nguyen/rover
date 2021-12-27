@@ -208,57 +208,63 @@ func (r *rover) GenerateNodes() []Node {
 func (r *rover) addEdges(base string, parent string, edgeMap map[string]Edge, resources map[string]*Resource) []string {
 	emo := []string{}
 	for id, re := range resources {
-		if _, ok := r.RSO.Resources[id]; ok {
-			resource := r.RSO.Resources[id].Config
-			// fmt.Printf("%+v - %+v\n", oName, oValue)
-			for _, reValues := range resource.Expressions {
-				for _, dependsOnR := range reValues.References {
-					if !strings.HasPrefix(dependsOnR, "each.") {
-						if strings.HasPrefix(dependsOnR, "module.") {
-							id := strings.Split(dependsOnR, ".")
-							dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
-						}
-						sourceType := RESOURCE_COLOR
-						targetType := RESOURCE_COLOR
+		if _, ok := r.RSO.States[id]; ok {
+			configId := r.RSO.States[id].ConfigId
 
-						if strings.HasPrefix(resource.Address, "output.") {
-							sourceType = OUTPUT_COLOR
-						} else if strings.HasPrefix(resource.Address, "var.") {
-							sourceType = VARIABLE_COLOR
-						} else if strings.HasPrefix(resource.Address, "module.") {
-							sourceType = MODULE_COLOR
-						} else if strings.HasPrefix(resource.Address, "data.") {
-							sourceType = DATA_COLOR
-						}
+			rc := r.RSO.Configs[configId].ResourceConfig
+			if r.RSO.Configs[configId].ResourceConfig != nil {
+				// fmt.Printf("%+v - %+v\n", oName, oValue)
+				for _, reValues := range rc.Expressions {
+					for _, dependsOnR := range reValues.References {
+						if !strings.HasPrefix(dependsOnR, "each.") {
 
-						if strings.HasPrefix(dependsOnR, "output.") {
-							targetType = OUTPUT_COLOR
-						} else if strings.HasPrefix(dependsOnR, "var.") {
-							targetType = VARIABLE_COLOR
-						} else if strings.HasPrefix(dependsOnR, "module.") {
-							targetType = MODULE_COLOR
-						} else if strings.HasPrefix(dependsOnR, "data.") {
-							targetType = DATA_COLOR
-						}
+							/*if strings.HasPrefix(dependsOnR, "module.") {
+								id := strings.Split(dependsOnR, ".")
+								dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
+							}*/
 
-						// For Terraform 1.0, resource references point to specific resource attributes
-						// Skip if the target is a resource and reference points to an attribute
-						if targetType == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
-							continue
-						} else if targetType == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
-							continue
-						}
+							sourceType := getResourceColor(re.Type)
+							targetType := RESOURCE_COLOR
 
-						id := fmt.Sprintf("%s->%s", resource.Address, dependsOnR)
-						emo = append(emo, id)
-						edgeMap[id] = Edge{
-							Data: EdgeData{
-								ID:       id,
-								Source:   resource.Address,
-								Target:   dependsOnR,
-								Gradient: fmt.Sprintf("%s %s", sourceType, targetType),
-							},
-							Classes: "edge",
+							/*if strings.HasPrefix(rc.Address, "output.") {
+								sourceType = OUTPUT_COLOR
+							} else if strings.HasPrefix(rc.Address, "var.") {
+								sourceType = VARIABLE_COLOR
+							} else if strings.HasPrefix(rc.Address, "module.") {
+								sourceType = MODULE_COLOR
+							} else if strings.HasPrefix(rc.Address, "data.") {
+								sourceType = DATA_COLOR
+							}*/
+
+							if strings.Contains(dependsOnR, "output.") {
+								targetType = OUTPUT_COLOR
+							} else if strings.Contains(dependsOnR, "var.") {
+								targetType = VARIABLE_COLOR
+							} else if strings.HasPrefix(dependsOnR, "module.") {
+								targetType = MODULE_COLOR
+							} else if strings.Contains(dependsOnR, "data.") {
+								targetType = DATA_COLOR
+							}
+
+							// For Terraform 1.0, resource references point to specific resource attributes
+							// Skip if the target is a resource and reference points to an attribute
+							if targetType == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
+								continue
+							} else if targetType == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
+								continue
+							}
+
+							id := fmt.Sprintf("%s->%s", id, dependsOnR)
+							emo = append(emo, id)
+							edgeMap[id] = Edge{
+								Data: EdgeData{
+									ID:       id,
+									Source:   rc.Address,
+									Target:   dependsOnR,
+									Gradient: fmt.Sprintf("%s %s", sourceType, targetType),
+								},
+								Classes: "edge",
+							}
 						}
 					}
 				}
@@ -303,6 +309,8 @@ func getResourceColor(t ResourceType) string {
 		return OUTPUT_COLOR
 	case ResourceTypeVariable:
 		return VARIABLE_COLOR
+	case ResourceTypeLocal:
+		return LOCAL_COLOR
 	}
 	// return RESOURCE_COLOR
 	return FNAME_BG_COLOR

@@ -175,14 +175,28 @@ export default {
     getResourceConfig(resourceID, model, isChild) {
       console.log(`resourceID: ${resourceID}`);
       console.log(model);
+      let configID = model.states[resourceID]?.config_id;
+      let config;
 
       if (isChild) return { isChild: "rover-for-each-child-resource-true" };
 
-      // If module, return module config otherwise return resource config
-      if (model.resources[resourceID]?.module_config) {   
-        return model.resources[resourceID].module_config;
-      } else if (model.resources[resourceID]?.config) {
-        return model.resources[resourceID].config
+      // If variable, return variable config
+      if ((config = model.configs[configID]?.variable_config) !== undefined) {
+        return config;
+      }
+
+      // If output, return output config
+      if ((config = model.configs[configID]?.output_config) !== undefined) {
+        return config;
+      }
+
+      // If module, return module config
+      if ((config = model.configs[configID]?.module_config) !== undefined) {
+        return config;
+      }
+
+      if ((config = model.configs[configID]?.resource_config) !== undefined) {
+        return config;
       }
 
       return {};
@@ -212,15 +226,13 @@ export default {
       // console.log(model);
 
       let rc = {};
-
       if (resourceID.includes("var.")) {
         return (rc = {});
       }
       if (resourceID.includes("output.")) {
-        let id = resourceID.replace("output.", "");
         //let id = resourceID;
-        if (model.output[id] && model.output[id].change) {
-          const c = model.output[id].change;
+        if (model.states[resourceID] && model.states[resourceID].change) {
+          const c = model.states[resourceID].change;
 
           if (c.actions) {
             rc.action = c.actions.length > 1 ? "replace" : c.actions[0];
@@ -252,8 +264,8 @@ export default {
       }
 
       // Resource
-      if (model.resources[resourceID] && model.resources[resourceID].change) {
-        const c = model.resources[resourceID].change;
+      if (model.states[resourceID] && model.states[resourceID].change) {
+        const c = model.states[resourceID].change;
 
         if (c.actions) {
           rc.action = c.actions.length > 1 ? "replace" : c.actions[0];
