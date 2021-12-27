@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	tfjson "github.com/hashicorp/terraform-json"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 	MODULE_COLOR    string = "#8450ba"
 	MODULE_BG_COLOR string = "white"
 	FNAME_BG_COLOR  string = "white"
-	RESOURCE_COLOR  string = "#8450ba"
+	RESOURCE_COLOR  string = "lightgray"
 	LOCAL_COLOR     string = "black"
 )
 
@@ -211,67 +213,81 @@ func (r *rover) addEdges(base string, parent string, edgeMap map[string]Edge, re
 		if _, ok := r.RSO.States[id]; ok {
 			configId := r.RSO.States[id].ConfigId
 
-			rc := r.RSO.Configs[configId].ResourceConfig
+			var expressions map[string]*tfjson.Expression
+
+			// If Resource
 			if r.RSO.Configs[configId].ResourceConfig != nil {
-				// fmt.Printf("%+v - %+v\n", oName, oValue)
-				for _, reValues := range rc.Expressions {
-					for _, dependsOnR := range reValues.References {
-						if !strings.HasPrefix(dependsOnR, "each.") {
+				expressions = r.RSO.Configs[configId].ResourceConfig.Expressions
+				// If Module
+			} else if r.RSO.Configs[configId].ModuleConfig != nil {
+				expressions = r.RSO.Configs[configId].ModuleConfig.Expressions
+				// If Output
+			} else if r.RSO.Configs[configId].OutputConfig != nil {
+				expressions = make(map[string]*tfjson.Expression)
+				expressions["output"] = r.RSO.Configs[configId].OutputConfig.Expression
+			}
 
-							/*if strings.HasPrefix(dependsOnR, "module.") {
-								id := strings.Split(dependsOnR, ".")
-								dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
-							}*/
+			// fmt.Printf("%+v - %+v\n", oName, oValue)
+			for _, reValues := range expressions {
+				for _, dependsOnR := range reValues.References {
+					if !strings.HasPrefix(dependsOnR, "each.") {
 
-							sourceType := getResourceColor(re.Type)
-							targetType := RESOURCE_COLOR
+						/*if strings.HasPrefix(dependsOnR, "module.") {
+							id := strings.Split(dependsOnR, ".")
+							dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
+						}*/
 
-							/*if strings.HasPrefix(rc.Address, "output.") {
-								sourceType = OUTPUT_COLOR
-							} else if strings.HasPrefix(rc.Address, "var.") {
-								sourceType = VARIABLE_COLOR
-							} else if strings.HasPrefix(rc.Address, "module.") {
-								sourceType = MODULE_COLOR
-							} else if strings.HasPrefix(rc.Address, "data.") {
-								sourceType = DATA_COLOR
-							}*/
+						sourceColor := getResourceColor(re.Type)
+						targetId := dependsOnR
+						if parent != "" {
+							targetId = fmt.Sprintf("%s.%s", parent, dependsOnR)
+						}
 
-							if strings.Contains(dependsOnR, "output.") {
-								targetType = OUTPUT_COLOR
-							} else if strings.Contains(dependsOnR, "var.") {
-								targetType = VARIABLE_COLOR
-							} else if strings.HasPrefix(dependsOnR, "module.") {
-								targetType = MODULE_COLOR
-							} else if strings.Contains(dependsOnR, "data.") {
-								targetType = DATA_COLOR
-							}
+						targetColor := RESOURCE_COLOR
 
-							// For Terraform 1.0, resource references point to specific resource attributes
-							// Skip if the target is a resource and reference points to an attribute
-							if targetType == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
-								continue
-							} else if targetType == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
-								continue
-							}
+						if strings.Contains(dependsOnR, "output.") {
+							targetColor = OUTPUT_COLOR
+						} else if strings.Contains(dependsOnR, "var.") {
+							targetColor = VARIABLE_COLOR
+						} else if strings.HasPrefix(dependsOnR, "module.") {
+							targetColor = MODULE_COLOR
+						} else if strings.Contains(dependsOnR, "data.") {
+							targetColor = DATA_COLOR
+						} else if strings.Contains(dependsOnR, "local.") {
+							targetColor = LOCAL_COLOR
+						}
 
-							id := fmt.Sprintf("%s->%s", id, dependsOnR)
-							emo = append(emo, id)
-							edgeMap[id] = Edge{
-								Data: EdgeData{
-									ID:       id,
-									Source:   rc.Address,
-									Target:   dependsOnR,
-									Gradient: fmt.Sprintf("%s %s", sourceType, targetType),
-								},
-								Classes: "edge",
-							}
+						// For Terraform 1.0, resource references point to specific resource attributes
+						// Skip if the target is a resource and reference points to an attribute
+						if targetColor == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
+							continue
+						} else if targetColor == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
+							continue
+						}
+
+						edgeId := fmt.Sprintf("%s->%s", id, targetId)
+						emo = append(emo, edgeId)
+						edgeMap[edgeId] = Edge{
+							Data: EdgeData{
+								ID:       edgeId,
+								Source:   id,
+								Target:   targetId,
+								Gradient: fmt.Sprintf("%s %s", sourceColor, targetColor),
+							},
+							Classes: "edge",
 						}
 					}
 				}
 			}
+
 		}
 
-		emo = append(emo, r.addEdges(base, id, edgeMap, re.Children)...)
+		// Ignore files in graph building
+		if re.Type == ResourceTypeFile {
+			emo = append(emo, r.addEdges(base, parent, edgeMap, re.Children)...)
+		} else {
+			emo = append(emo, r.addEdges(base, id, edgeMap, re.Children)...)
+		}
 	}
 
 	return emo
@@ -302,7 +318,7 @@ func (r *rover) GenerateEdges() []Edge {
 func getResourceColor(t ResourceType) string {
 	switch t {
 	case ResourceTypeModule:
-		return MODULE_BG_COLOR
+		return MODULE_COLOR
 	case ResourceTypeData:
 		return DATA_COLOR
 	case ResourceTypeOutput:
@@ -312,8 +328,7 @@ func getResourceColor(t ResourceType) string {
 	case ResourceTypeLocal:
 		return LOCAL_COLOR
 	}
-	// return RESOURCE_COLOR
-	return FNAME_BG_COLOR
+	return RESOURCE_COLOR
 }
 
 func getPrimitiveType(resourceType string) string {

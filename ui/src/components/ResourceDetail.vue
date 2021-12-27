@@ -175,7 +175,8 @@ export default {
     getResourceConfig(resourceID, model, isChild) {
       console.log(`resourceID: ${resourceID}`);
       console.log(model);
-      let configID = model.states[resourceID]?.config_id;
+      let configID = model.states[resourceID]?.config_id ? model.states[resourceID]?.config_id : resourceID.replace(/\[[^[\]]*\]/g, "");
+
       let config;
 
       if (isChild) return { isChild: "rover-for-each-child-resource-true" };
