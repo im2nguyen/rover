@@ -51,7 +51,7 @@ func screenshot() {
 	downloadComplete := make(chan bool)
 	chromedp.ListenTarget(ctx, func(v interface{}) {
 		if ev, ok := v.(*browser.EventDownloadProgress); ok {
-			if ev.State == browser.DownloadProgressStateCanceled || ev.State == browser.DownloadProgressStateCompleted {
+			if ev.State == browser.DownloadProgressStateCompleted {
 				downloadGUID = ev.GUID
 				close(downloadComplete)
 			}
@@ -73,7 +73,6 @@ func screenshot() {
 		// will cause this error to be emitted, although the download will still succeed.
 		log.Fatal(err)
 	}
-
 	<-downloadComplete
 
 	e := os.Rename(fmt.Sprintf("%v/%v", os.TempDir(), downloadGUID), "./rover.png")
