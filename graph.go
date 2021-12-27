@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -95,7 +96,15 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 
 		if re.Type == ResourceTypeResource || re.Type == ResourceTypeData {
 
-			mid := fmt.Sprintf("%v.%v", parent, re.ResourceType)
+			pid := parent
+
+			if nodeMap[parent].Data.Type == ResourceTypeFile {
+				pid = strings.TrimSuffix(pid, nodeMap[parent].Data.Label)
+				pid = strings.TrimSuffix(pid, ".")
+				//qfmt.Printf("%v\n", pid)
+			}
+
+			mid := fmt.Sprintf("%v.%v", pid, re.ResourceType)
 			mid = strings.TrimPrefix(mid, fmt.Sprintf("%v.", base))
 			mid = strings.TrimSuffix(mid, ".")
 
@@ -139,10 +148,34 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
 
 		} else if re.Type == ResourceTypeFile {
-			nmo = append(nmo, r.addNodes(base, parent, nodeMap, re.Children)...)
+			fid := id
+			if parent != base {
+				fid = fmt.Sprintf("%s.%s", parent, fid)
+			}
+			//fmt.Printf("%v\n", fid)
+			nmo = append(nmo, fid)
+			nodeMap[fid] = Node{
+				Data: NodeData{
+					ID:          fid,
+					Label:       id,
+					Type:        re.Type,
+					Parent:      parent,
+					ParentColor: getResourceColor(nodeMap[parent].Data.Type),
+				},
+
+				Classes: getResourceClass(re.Type),
+			}
+			nmo = append(nmo, r.addNodes(base, fid, nodeMap, re.Children)...)
 		} else {
 
-			label := strings.TrimPrefix(id, parent)
+			pid := parent
+
+			if nodeMap[parent].Data.Type == ResourceTypeFile {
+				pid = strings.TrimSuffix(pid, nodeMap[parent].Data.Label)
+				pid = strings.TrimSuffix(pid, ".")
+			}
+
+			label := strings.TrimPrefix(id, pid)
 			label = strings.TrimPrefix(label, ".")
 			label = strings.TrimPrefix(label, "module.")
 			label = strings.TrimPrefix(label, "local.")
@@ -158,7 +191,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 					Label:       label,
 					Type:        re.Type,
 					Parent:      parent,
-					ParentColor: getResourceColor(nodeMap[parent].Data.Type),
+					ParentColor: getResourceColor(nodeMap[pid].Data.Type),
 				},
 
 				Classes: getResourceClass(re.Type),
@@ -210,11 +243,17 @@ func (r *rover) GenerateNodes() []Node {
 func (r *rover) addEdges(base string, parent string, edgeMap map[string]Edge, resources map[string]*Resource) []string {
 	emo := []string{}
 	for id, re := range resources {
+		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+
+		configId := matchBrackets.ReplaceAllString(id, "")
+
 		if _, ok := r.RSO.States[id]; ok {
-			configId := r.RSO.States[id].ConfigId
+			configId = r.RSO.States[id].ConfigId
+		}
 
-			var expressions map[string]*tfjson.Expression
+		var expressions map[string]*tfjson.Expression
 
+		if r.RSO.Configs[configId] != nil {
 			// If Resource
 			if r.RSO.Configs[configId].ResourceConfig != nil {
 				expressions = r.RSO.Configs[configId].ResourceConfig.Expressions
@@ -226,63 +265,61 @@ func (r *rover) addEdges(base string, parent string, edgeMap map[string]Edge, re
 				expressions = make(map[string]*tfjson.Expression)
 				expressions["output"] = r.RSO.Configs[configId].OutputConfig.Expression
 			}
+		}
+		// fmt.Printf("%+v - %+v\n", oName, oValue)
+		for _, reValues := range expressions {
+			for _, dependsOnR := range reValues.References {
+				if !strings.HasPrefix(dependsOnR, "each.") {
 
-			// fmt.Printf("%+v - %+v\n", oName, oValue)
-			for _, reValues := range expressions {
-				for _, dependsOnR := range reValues.References {
-					if !strings.HasPrefix(dependsOnR, "each.") {
+					/*if strings.HasPrefix(dependsOnR, "module.") {
+						id := strings.Split(dependsOnR, ".")
+						dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
+					}*/
 
-						/*if strings.HasPrefix(dependsOnR, "module.") {
-							id := strings.Split(dependsOnR, ".")
-							dependsOnR = fmt.Sprintf("%s.%s", id[0], id[1])
-						}*/
+					sourceColor := getResourceColor(re.Type)
+					targetId := dependsOnR
+					if parent != "" {
+						targetId = fmt.Sprintf("%s.%s", parent, dependsOnR)
+					}
 
-						sourceColor := getResourceColor(re.Type)
-						targetId := dependsOnR
-						if parent != "" {
-							targetId = fmt.Sprintf("%s.%s", parent, dependsOnR)
-						}
+					targetColor := RESOURCE_COLOR
 
-						targetColor := RESOURCE_COLOR
+					if strings.Contains(dependsOnR, "output.") {
+						targetColor = OUTPUT_COLOR
+					} else if strings.Contains(dependsOnR, "var.") {
+						targetColor = VARIABLE_COLOR
+					} else if strings.HasPrefix(dependsOnR, "module.") {
+						targetColor = MODULE_COLOR
+					} else if strings.Contains(dependsOnR, "data.") {
+						targetColor = DATA_COLOR
+					} else if strings.Contains(dependsOnR, "local.") {
+						targetColor = LOCAL_COLOR
+					}
 
-						if strings.Contains(dependsOnR, "output.") {
-							targetColor = OUTPUT_COLOR
-						} else if strings.Contains(dependsOnR, "var.") {
-							targetColor = VARIABLE_COLOR
-						} else if strings.HasPrefix(dependsOnR, "module.") {
-							targetColor = MODULE_COLOR
-						} else if strings.Contains(dependsOnR, "data.") {
-							targetColor = DATA_COLOR
-						} else if strings.Contains(dependsOnR, "local.") {
-							targetColor = LOCAL_COLOR
-						}
+					// For Terraform 1.0, resource references point to specific resource attributes
+					// Skip if the target is a resource and reference points to an attribute
+					if targetColor == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
+						continue
+					} else if targetColor == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
+						continue
+					}
 
-						// For Terraform 1.0, resource references point to specific resource attributes
-						// Skip if the target is a resource and reference points to an attribute
-						if targetColor == RESOURCE_COLOR && len(strings.Split(dependsOnR, ".")) != 2 {
-							continue
-						} else if targetColor == DATA_COLOR && len(strings.Split(dependsOnR, ".")) != 3 {
-							continue
-						}
-
-						edgeId := fmt.Sprintf("%s->%s", id, targetId)
-						emo = append(emo, edgeId)
-						edgeMap[edgeId] = Edge{
-							Data: EdgeData{
-								ID:       edgeId,
-								Source:   id,
-								Target:   targetId,
-								Gradient: fmt.Sprintf("%s %s", sourceColor, targetColor),
-							},
-							Classes: "edge",
-						}
+					edgeId := fmt.Sprintf("%s->%s", id, targetId)
+					emo = append(emo, edgeId)
+					edgeMap[edgeId] = Edge{
+						Data: EdgeData{
+							ID:       edgeId,
+							Source:   id,
+							Target:   targetId,
+							Gradient: fmt.Sprintf("%s %s", sourceColor, targetColor),
+						},
+						Classes: "edge",
 					}
 				}
 			}
-
 		}
 
-		// Ignore files in graph building
+		// Ignore files in edge generation
 		if re.Type == ResourceTypeFile {
 			emo = append(emo, r.addEdges(base, parent, edgeMap, re.Children)...)
 		} else {
