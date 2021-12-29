@@ -460,9 +460,7 @@ export default {
               return e;
             }
           })
-          .not(node)
-          .not(node.parent())
-          .not(node.parent().parent())
+          .not(node.ancestors())
           .addClass("semitransp");
 
         node
