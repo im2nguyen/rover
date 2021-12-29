@@ -173,8 +173,6 @@ export default {
       return val ? val : "null";
     },
     getResourceConfig(resourceID, model, isChild) {
-      console.log(`resourceID: ${resourceID}`);
-      console.log(model);
       let configID = model.states[resourceID]?.config_id ? model.states[resourceID]?.config_id : resourceID.replace(/\[[^[\]]*\]/g, "");
 
       let config;
@@ -405,7 +403,7 @@ export default {
     } else {
       axios.get(`/api/rso`).then((response) => {
         this.overview = response.data;
-        console.log(this.overview);
+        //console.log(this.overview);
       });
     }
   },
