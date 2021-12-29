@@ -212,11 +212,13 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 				parent.Children[fname].Children[id] = re
 
-			} else {
+			} else if !childIndex.MatchString(id) {
 
 				r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
 
 				parent.Children[DefaultFileName].Children[id] = re
+			} else {
+				parent.Children[id] = re
 			}
 
 			r.GenerateModuleMap(re, id)
