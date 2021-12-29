@@ -169,10 +169,6 @@ func main() {
 		return
 	}
 
-	if genImage {
-		go screenshot()
-	}
-
 	err = r.startServer(ipPort, frontendFS)
 	if err != nil {
 		log.Fatalf("Could not start server: %s\n", err.Error())
