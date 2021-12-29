@@ -106,6 +106,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 
 			mid := fmt.Sprintf("%v.%v", pid, re.ResourceType)
 			mid = strings.TrimPrefix(mid, fmt.Sprintf("%v.", base))
+			mid = strings.TrimPrefix(mid, ".")
 			mid = strings.TrimSuffix(mid, ".")
 
 			l := strings.Split(mid, ".")

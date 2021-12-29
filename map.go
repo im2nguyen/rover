@@ -11,8 +11,8 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-type ResourceType string
 type Action string
+type ResourceType string
 
 const (
 	ResourceTypeFile     ResourceType = "file"
@@ -22,7 +22,7 @@ const (
 	ResourceTypeResource ResourceType = "resource"
 	ResourceTypeData     ResourceType = "data"
 	ResourceTypeModule   ResourceType = "module"
-	DefaultFileName      string       = "Resources"
+	DefaultFileName      string       = "unknown"
 )
 
 const (
@@ -83,105 +83,85 @@ type ModuleCall struct {
 	Line    int    `json:"line,omitempty"`
 }
 
-func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentPath string, module *tfconfig.Module, config *tfjson.ConfigModule) {
+func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
+
+	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
+	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+
+	states := r.RSO.States
+	configs := r.RSO.Configs
 
 	prefix := parentModule
 	if parentModule != "" {
 		prefix = fmt.Sprintf("%s.", prefix)
 	}
 
-	// Loop through each resource type and populate graph
-	for _, variable := range module.Variables {
+	parentConfig := matchBrackets.ReplaceAllString(parentModule, "")
+	parentConfigured := configs[parentConfig] != nil
 
-		fname := filepath.Base(variable.Pos.Filename)
+	if parentConfigured && !states[parentModule].IsParent {
+		for oName, o := range configs[parentConfig].Module.Outputs {
+			fname := filepath.Base(o.Pos.Filename)
+			oid := fmt.Sprintf("%soutput.%s", prefix, oName)
+			out := &Resource{
+				Type:      ResourceTypeOutput,
+				Name:      oName,
+				Sensitive: o.Sensitive,
+				Line:      &o.Pos.Line,
+			}
+			r.AddFileIfNotExists(parent, parentModule, fname)
 
-		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname)
-
-		id := fmt.Sprintf("%svar.%s", prefix, variable.Name)
-
-		parent.Children[fname].Children[id] = &Resource{
-			Type:     ResourceTypeVariable,
-			Name:     variable.Name,
-			Required: &variable.Required,
-			Line:     &variable.Pos.Line,
+			parent.Children[fname].Children[oid] = out
 		}
 
-		// Get variable sensitivity
-		if _, ok := config.Variables[variable.Name]; ok {
-			parent.Children[fname].Children[id].Sensitive = config.Variables[variable.Name].Sensitive
-		}
+		for vName, v := range configs[parentConfig].Module.Variables {
+			fname := filepath.Base(v.Pos.Filename)
+			vid := fmt.Sprintf("%svar.%s", prefix, vName)
+			va := &Resource{
+				Type:     ResourceTypeVariable,
+				Name:     vName,
+				Required: &v.Required,
+				Line:     &v.Pos.Line,
+			}
 
+			r.AddFileIfNotExists(parent, parentModule, fname)
+
+			parent.Children[fname].Children[vid] = va
+
+		}
 	}
 
-	for _, output := range module.Outputs {
+	for id, rs := range states[parentModule].Children {
 
-		fname := filepath.Base(output.Pos.Filename)
+		configId := matchBrackets.ReplaceAllString(id, "")
+		configured := configs[parentConfig] != nil && configs[configId] != nil
 
-		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname)
-
-		id := fmt.Sprintf("%soutput.%s", prefix, output.Name)
-
-		oo := &Resource{
-			Type:      ResourceTypeOutput,
-			Name:      output.Name,
-			Sensitive: output.Sensitive,
-			Line:      &output.Pos.Line,
+		re := &Resource{
+			Type:     rs.Type,
+			Children: map[string]*Resource{},
 		}
 
-		if _, ok := r.RSO.States[id]; ok {
-			//if ok = r.RSO.Outputs[output.Name].Change != nil {
-			if r.RSO.States[id].Change.Actions != nil {
-				oo.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
+		if states[id].Change.Actions != nil {
 
-				if len(r.RSO.States[id].Change.Actions) > 1 {
-					oo.ChangeAction = ActionReplace
-				}
+			re.ChangeAction = Action(string(states[id].Change.Actions[0]))
+			if len(states[id].Change.Actions) > 1 {
+				re.ChangeAction = ActionReplace
 			}
-			//}
 		}
 
-		parent.Children[fname].Children[id] = oo
+		if rs.Type == ResourceTypeResource || rs.Type == ResourceTypeData {
+			re.ResourceType = configs[configId].ResourceConfig.Type
+			re.Name = configs[configId].ResourceConfig.Name
 
-	}
-
-	for _, resource := range module.ManagedResources {
-		fname := filepath.Base(resource.Pos.Filename)
-
-		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname)
-
-		id := fmt.Sprintf("%s%s.%s", prefix, resource.Type, resource.Name)
-		if _, ok := r.RSO.States[id]; ok {
-			configId := r.RSO.States[id].ConfigId
-
-			re := &Resource{
-				Type:         ResourceTypeResource,
-				Name:         resource.Name,
-				ResourceType: resource.Type,
-				Provider:     resource.Provider.Name,
-				Line:         &resource.Pos.Line,
-			}
-
-			if r.RSO.States[id].Change.Actions != nil {
-
-				re.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
-
-				if len(r.RSO.States[id].Change.Actions) > 1 {
-					re.ChangeAction = ActionReplace
-				}
-			}
-
-			for crName, cr := range r.RSO.States[id].Children {
+			for crName, cr := range states[id].Children {
 
 				if re.Children == nil {
 					re.Children = make(map[string]*Resource)
 				}
 
 				tcr := &Resource{
-					Type: ResourceTypeResource,
-					Name: strings.TrimPrefix(crName, fmt.Sprintf("%s%s.", prefix, resource.Type)),
+					Type: rs.Type,
+					Name: strings.TrimPrefix(crName, fmt.Sprintf("%s%s.", prefix, re.ResourceType)),
 				}
 
 				if cr.Change.Actions != nil {
@@ -195,161 +175,84 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string, parentP
 				re.Children[crName] = tcr
 			}
 
+			if configured {
+
+				var fname string
+				ind := fmt.Sprintf("%s.%s", re.ResourceType, re.Name)
+
+				if rs.Type == ResourceTypeData {
+					ind = fmt.Sprintf("data.%s", ind)
+					fname = filepath.Base(configs[parentConfig].Module.DataResources[ind].Pos.Filename)
+					re.Line = &configs[parentConfig].Module.DataResources[ind].Pos.Line
+				} else if rs.Type == ResourceTypeResource {
+					fname = filepath.Base(configs[parentConfig].Module.ManagedResources[ind].Pos.Filename)
+					re.Line = &configs[parentConfig].Module.ManagedResources[ind].Pos.Line
+				}
+
+				r.AddFileIfNotExists(parent, parentModule, fname)
+
+				parent.Children[fname].Children[id] = re
+
+			} else {
+
+				r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
+
+				parent.Children[DefaultFileName].Children[id] = re
+			}
+
+		} else if rs.Type == ResourceTypeModule {
+			re.Name = strings.Split(id, ".")[len(strings.Split(id, "."))-1]
+
+			if configured && !childIndex.MatchString(id) {
+				fmt.Printf("%v - %v\n", re.Name, configs[parentConfig].Module.ModuleCalls)
+				fname := filepath.Base(configs[parentConfig].Module.ModuleCalls[matchBrackets.ReplaceAllString(re.Name, "")].Pos.Filename)
+				re.Line = &configs[parentConfig].Module.ModuleCalls[matchBrackets.ReplaceAllString(re.Name, "")].Pos.Line
+
+				r.AddFileIfNotExists(parent, parentModule, fname)
+
+				parent.Children[fname].Children[id] = re
+
+			} else {
+
+				r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
+
+				parent.Children[DefaultFileName].Children[id] = re
+			}
+
+			r.GenerateModuleMap(re, id)
+
+		}
+
+		if configured && !(re.Type == ResourceTypeModule && childIndex.MatchString(id)) {
+			expressions := map[string]*tfjson.Expression{}
+
+			if re.Type == ResourceTypeResource {
+				expressions = configs[configId].ResourceConfig.Expressions
+			} else if re.Type == ResourceTypeModule {
+				expressions = configs[configId].ModuleConfig.Expressions
+			} else if re.Type == ResourceTypeOutput {
+				expressions["exp"] = configs[configId].OutputConfig.Expression
+			}
+
 			// Add locals
-			for _, reValues := range r.RSO.Configs[configId].ResourceConfig.Expressions {
+			for _, reValues := range expressions {
 				for _, dependsOnR := range reValues.References {
+					ref := &Resource{}
 					if strings.HasPrefix(dependsOnR, "local.") {
 						// Append local variable
-						l := &Resource{
-							Type: ResourceTypeLocal,
-							Name: strings.TrimPrefix(dependsOnR, "local."),
-						}
+						ref.Type = ResourceTypeLocal
+						ref.Name = strings.TrimPrefix(dependsOnR, "local.")
+						rid := fmt.Sprintf("%s%s", prefix, dependsOnR)
 
-						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
-						parent.Children[fname].Children[lid] = l
+						r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
+
+						parent.Children[DefaultFileName].Children[rid] = ref
 					}
 				}
 			}
 
-			parent.Children[fname].Children[id] = re
-		}
-
-	}
-
-	for _, data := range module.DataResources {
-
-		fname := filepath.Base(data.Pos.Filename)
-
-		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname)
-
-		id := fmt.Sprintf("%sdata.%s.%s", prefix, data.Type, data.Name)
-
-		if _, ok := r.RSO.States[id]; ok {
-			configId := r.RSO.States[id].ConfigId
-
-			dr := &Resource{
-				Type:         ResourceTypeData,
-				Name:         data.Name,
-				ResourceType: data.Type,
-				Provider:     data.Provider.Name,
-				Line:         &data.Pos.Line,
-			}
-
-			if r.RSO.States[id].Change.Actions != nil {
-				dr.ChangeAction = Action(string(r.RSO.States[id].Change.Actions[0]))
-
-				if len(r.RSO.States[id].Change.Actions) > 1 {
-					dr.ChangeAction = ActionReplace
-				}
-			}
-
-			// Add locals
-			for _, reValues := range r.RSO.Configs[configId].ResourceConfig.Expressions {
-				for _, dependsOnR := range reValues.References {
-					if strings.HasPrefix(dependsOnR, "local.") {
-						// Append local variable
-						l := &Resource{
-							Type: ResourceTypeLocal,
-							Name: strings.TrimPrefix(dependsOnR, "local."),
-						}
-
-						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
-						parent.Children[fname].Children[lid] = l
-					}
-				}
-			}
-
-			parent.Children[fname].Children[id] = dr
-
 		}
 	}
-
-	for _, childModule := range r.RSO.States[parentModule].Module.ChildModules {
-
-		childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
-
-		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
-		configId := matchBrackets.ReplaceAllString(childModule.Address, "")
-		configId = strings.Split(configId, ".")[len(strings.Split(configId, "."))-1]
-
-		mc := module.ModuleCalls[configId]
-
-		fname := filepath.Base(mc.Pos.Filename)
-
-		// Populate with file if doesn't exist
-		r.AddFileIfNotExists(parent, parentModule, fname)
-
-		id := childModule.Address
-		name := strings.Split(id, ".")[len(strings.Split(id, "."))-1]
-
-		m := &Resource{
-			Type:     ResourceTypeModule,
-			Name:     name,
-			Source:   mc.Source,
-			Version:  mc.Version,
-			Line:     &mc.Pos.Line,
-			Children: map[string]*Resource{},
-		}
-
-		// If module is child b/c of count or for_each
-		if childIndex.MatchString(id) {
-			pid := childIndex.ReplaceAllString(id, "")
-			pname := strings.Split(pid, ".")[len(strings.Split(pid, "."))-1]
-
-			// If parent does not exist, make it
-			if _, ok := parent.Children[fname].Children[pid]; !ok {
-				p := &Resource{
-					Type:     ResourceTypeModule,
-					Name:     pname,
-					Source:   mc.Source,
-					Version:  mc.Version,
-					Line:     &mc.Pos.Line,
-					Children: map[string]*Resource{},
-				}
-
-				parent.Children[fname].Children[pid] = p
-			}
-
-			parent.Children[fname].Children[pid].Children[id] = m
-
-		} else {
-
-			parent.Children[fname].Children[id] = m
-		}
-
-		// Add locals
-		configId = matchBrackets.ReplaceAllString(childModule.Address, "")
-
-		if _, ok := r.RSO.Configs[configId]; ok {
-			for _, reValues := range r.RSO.Configs[configId].ModuleConfig.Expressions {
-				for _, dependsOnR := range reValues.References {
-					if strings.HasPrefix(dependsOnR, "local.") {
-						// Append local variable
-						l := &Resource{
-							Type: ResourceTypeLocal,
-							Name: strings.TrimPrefix(dependsOnR, "local."),
-						}
-
-						lid := fmt.Sprintf("%s%s", prefix, dependsOnR)
-						//fmt.Printf("%v\n", lid)
-						parent.Children[fname].Children[lid] = l
-					}
-				}
-			}
-		}
-
-		childPath := mc.Source
-		if parentPath != "" {
-			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
-		}
-
-		child, _ := tfconfig.LoadModule(childPath)
-
-		r.GenerateModuleMap(m, id, childPath, child, config.ModuleCalls[mc.Name].Module)
-
-	}
-
 }
 
 func (r *rover) AddFileIfNotExists(module *Resource, parentModule string, fname string) {
@@ -359,6 +262,7 @@ func (r *rover) AddFileIfNotExists(module *Resource, parentModule string, fname 
 		module.Children[fname] = &Resource{
 			Type:     ResourceTypeFile,
 			Name:     fname,
+			Source:   fmt.Sprintf("%s/%s", module.Source, fname),
 			Children: map[string]*Resource{},
 		}
 	}
@@ -382,7 +286,7 @@ func (r *rover) GenerateMap() error {
 		Children: map[string]*Resource{},
 	}
 
-	r.GenerateModuleMap(rootModule, "", "", r.Config, r.Plan.Config.RootModule)
+	r.GenerateModuleMap(rootModule, "")
 
 	mapObj := &Map{
 		Path:              r.Config.Path,

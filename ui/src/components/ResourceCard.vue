@@ -50,7 +50,7 @@
           }}{{ content.resource_type ? content.resource_type : "" }}
         </p>
       </div>
-      <div class="col col-2 text-right" v-if="!isChild">
+      <div class="col col-2 text-right" v-if="content.line">
         Line: # <span class="line-number">{{ content.line }}</span>
       </div>
     </div>
@@ -295,7 +295,7 @@ export default {
   border-color: #ffc107;
 }
 
-.resource-card.destroy {
+.resource-card.delete {
   border-color: #e40707;
 }
 

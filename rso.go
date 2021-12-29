@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
@@ -23,6 +23,8 @@ type StateOverview struct {
 	Module    *tfjson.StateModule       `json:"module,omitempty"`
 	DependsOn []string                  `json:"depends_on,omitempty"`
 	Children  map[string]*StateOverview `json:"children,omitempty"`
+	Type      ResourceType              `json:"type,omitempty"`
+	IsParent  bool                      `json:"isparent,omitempty"`
 }
 
 type ConfigOverview struct {
@@ -30,9 +32,10 @@ type ConfigOverview struct {
 	ModuleConfig   *tfjson.ModuleCall     `json:"module_config,omitempty"`
 	VariableConfig *tfjson.ConfigVariable `json:"variable_config,omitempty"`
 	OutputConfig   *tfjson.ConfigOutput   `json:"output_config,omitempty"`
+	Module         *tfconfig.Module       `json:"module,omitempty"`
 }
 
-func (r *rover) PopulateConfigs(parent string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
+func (r *rover) PopulateConfigs(parent string, parentPath string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
 
 	rc := rso.Configs
 
@@ -88,17 +91,21 @@ func (r *rover) PopulateConfigs(parent string, rso *ResourcesOverview, config *t
 			rc[mn] = &ConfigOverview{}
 		}
 
-		rc[mn].ModuleConfig = m
-
-		if _, ok := rc[parent]; !ok {
-			rc[parent] = &ConfigOverview{}
+		childPath := m.Source
+		if parentPath != "" {
+			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
 		}
 
-		r.PopulateConfigs(mn, rso, m.Module)
+		child, _ := tfconfig.LoadModule(childPath)
+
+		rc[mn].ModuleConfig = m
+		rc[mn].Module = child
+
+		r.PopulateConfigs(mn, childPath, rso, m.Module)
 	}
 }
 
-func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.StateModule, config *tfjson.ConfigModule, prior bool) {
+func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.StateModule, prior bool) {
 	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
@@ -117,6 +124,16 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 			if _, ok := rs[id]; !ok {
 				rs[id] = &StateOverview{}
 				rs[id].ConfigId = configId
+				if rst.Mode == "data" {
+					rs[id].Type = ResourceTypeData
+				} else {
+					rs[id].Type = ResourceTypeResource
+				}
+			}
+
+			if _, ok := rs[parent]; !ok {
+				rs[parent] = &StateOverview{}
+				rs[parent].Children = make(map[string]*StateOverview)
 			}
 
 			// Check if resource has parent
@@ -127,9 +144,12 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 				if _, ok := rs[parent]; !ok {
 					rs[parent] = &StateOverview{}
 					rs[parent].Children = make(map[string]*StateOverview)
+					rs[parent].Type = ResourceTypeResource
+
 				}
 
 				rs[module.Address].Children[parent] = rs[parent]
+
 				rs[parent].ConfigId = matchBrackets.ReplaceAllString(parent, "")
 			}
 
@@ -158,20 +178,31 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 
 		parent := module.Address
+		parentConfig := matchBrackets.ReplaceAllString(parent, "")
+
 		id := childModule.Address
 		configId := matchBrackets.ReplaceAllString(id, "")
-		cid := strings.Split(configId, ".")[len(strings.Split(configId, "."))-1]
 
-		if childIndex.MatchString(id) {
-			parent = childIndex.ReplaceAllString(id, "")
-		}
-
-		//fmt.Printf("'%v' '%v' '%v'\n", parent, id, configId)
-		// If module has parent, create parent if doesn't exist
 		if _, ok := rs[parent]; !ok {
 			rs[parent] = &StateOverview{}
 			rs[parent].Children = make(map[string]*StateOverview)
-			rs[parent].ConfigId = configId
+			rs[parent].ConfigId = parentConfig
+			rs[parent].Type = ResourceTypeModule
+		}
+
+		if childIndex.MatchString(id) {
+			parent = childIndex.ReplaceAllString(id, "")
+
+			// If module has parent, create parent if doesn't exist
+			if _, ok := rs[parent]; !ok {
+				rs[parent] = &StateOverview{}
+				rs[parent].Children = make(map[string]*StateOverview)
+				rs[parent].ConfigId = configId
+				rs[parent].Type = ResourceTypeModule
+				rs[parent].IsParent = true
+			}
+
+			rs[module.Address].Children[parent] = rs[parent]
 		}
 
 		if rs[parent].Module == nil {
@@ -182,13 +213,14 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 			rs[id] = &StateOverview{}
 			rs[id].Children = make(map[string]*StateOverview)
 			rs[id].ConfigId = configId
+			rs[id].Type = ResourceTypeModule
 		}
 
 		rs[id].Module = childModule
 
 		rs[parent].Children[id] = rs[id]
 
-		r.PopulateModuleState(rso, childModule, config.ModuleCalls[cid].Module, prior)
+		r.PopulateModuleState(rso, childModule, prior)
 	}
 
 }
@@ -207,13 +239,18 @@ func (r *rover) GenerateResourceOverview() error {
 	rc := rso.Configs
 	rs := rso.States
 
-	r.PopulateConfigs("", rso, r.Plan.Config.RootModule)
+	// Create root module configuration
+	rc[""] = &ConfigOverview{}
+	rc[""].Module = r.Config
+	rc[""].ModuleConfig = &tfjson.ModuleCall{}
+
+	r.PopulateConfigs("", "", rso, r.Plan.Config.RootModule)
 
 	// Populate prior state
 	if r.Plan.PriorState != nil {
 		if r.Plan.PriorState.Values != nil {
 			if r.Plan.PriorState.Values.RootModule != nil {
-				r.PopulateModuleState(rso, r.Plan.PriorState.Values.RootModule, r.Plan.Config.RootModule, true)
+				r.PopulateModuleState(rso, r.Plan.PriorState.Values.RootModule, true)
 			}
 		}
 	}
@@ -221,7 +258,7 @@ func (r *rover) GenerateResourceOverview() error {
 	// Populate planned state
 	if r.Plan.PlannedValues != nil {
 		if r.Plan.PlannedValues.RootModule != nil {
-			r.PopulateModuleState(rso, r.Plan.PlannedValues.RootModule, r.Plan.Config.RootModule, false)
+			r.PopulateModuleState(rso, r.Plan.PlannedValues.RootModule, false)
 		}
 	}
 
@@ -250,6 +287,7 @@ func (r *rover) GenerateResourceOverview() error {
 		}
 
 		rs[outputName].Change = *output
+		rs[outputName].Type = ResourceTypeOutput
 	}
 
 	// Loop through resource changes
@@ -260,7 +298,7 @@ func (r *rover) GenerateResourceOverview() error {
 
 		if resource.Change != nil {
 
-			// If module has parent, create parent if doesn't exist
+			// If has parent, create parent if doesn't exist
 			if _, ok := rs[parent]; !ok {
 				rs[parent] = &StateOverview{}
 				rs[parent].Children = make(map[string]*StateOverview)
@@ -270,6 +308,11 @@ func (r *rover) GenerateResourceOverview() error {
 			// Create resource if doesn't exist
 			if _, ok := rs[id]; !ok {
 				rs[id] = &StateOverview{}
+				if resource.Mode == "data" {
+					rs[id].Type = ResourceTypeData
+				} else {
+					rs[id].Type = ResourceTypeResource
+				}
 				rs[parent].Children[id] = rs[id]
 			}
 			rs[id].Change = *resource.Change

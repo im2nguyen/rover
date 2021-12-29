@@ -20,7 +20,7 @@
           <b>Resource</b>
           <hr />
           <div class="node create">Resource - Create</div>
-          <div class="node destroy">Resource - Destroy</div>
+          <div class="node delete">Resource - Delete</div>
           <div class="node replace">Resource - Replace</div>
           <div class="node update">Resource - Update</div>
           <div class="node no-op">Resource - No Operation</div>

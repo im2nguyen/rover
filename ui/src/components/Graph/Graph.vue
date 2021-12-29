@@ -226,7 +226,7 @@ const config = {
       },
     },
     {
-      selector: ".destroy",
+      selector: ".delete",
       css: {
         "background-color": "#e40707",
         color: "white",
@@ -555,7 +555,7 @@ export default {
   border: 0;
 }
 
-.destroy {
+.delete {
   /* background-color: #ffe9e9;
   border: 5px solid #e40707; */
   background-color: #e40707;
