@@ -10,6 +10,7 @@
 <script>
 import { saveAs } from "file-saver";
 import klay from "cytoscape-klay";
+import svg from 'cytoscape-svg';
 import nodeHtmlLabel from "cytoscape-node-html-label";
 import axios from "axios";
 
@@ -306,6 +307,7 @@ export default {
   methods: {
     preConfig(cy) {
       cy.use(klay);
+      cy.use(svg);
 
       // Only load nodeHtmlLabel once
       if (typeof cy("core", "nodeHtmlLabel") !== "function") {
@@ -482,7 +484,10 @@ export default {
     },
     saveGraph: function () {
       let cy = this.$refs.cy.instance;
-      saveAs(cy.png({ full: true }), `rover.png`);
+      var svgContent = cy.svg({scale: 0.1, full: true});
+			var blob = new Blob([svgContent], {type:"image/svg+xml;charset=utf-8"});
+			saveAs(blob, "rover.svg");
+			
     },
     runLayouts: function () {
       let cy = this.$refs.cy.instance;

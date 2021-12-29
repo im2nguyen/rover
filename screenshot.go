@@ -75,7 +75,7 @@ func screenshot() {
 	}
 	<-downloadComplete
 
-	e := os.Rename(fmt.Sprintf("%v/%v", os.TempDir(), downloadGUID), "./rover.png")
+	e := os.Rename(fmt.Sprintf("%v/%v", os.TempDir(), downloadGUID), "./rover.svg")
 	if e != nil {
 		log.Fatal(e)
 	}
