@@ -1,50 +1,54 @@
-ARG TF_VERSION=light
+ARG NODE_VERSION=16
+ARG GO_VERSION=1.17
 
-# for UPX binary
-FROM pratikimprowise/upx as upx
-
-# for terraform binary
-FROM hashicorp/terraform:$TF_VERSION AS terraform
-
-# Build ui
-FROM node:16-alpine as ui
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine as ui
 WORKDIR /src
-# Copy specific package files first
 COPY ./ui/package*.json ./
-# Set Progress, Config and install
 RUN npm set progress=false && npm config set depth 0 && npm install
-# Copy source
-# Copy Specific Directories
 COPY ./ui/public ./public
 COPY ./ui/src ./src
-# build (to dist folder)
 RUN npm run build
 
-# Build rover
-FROM golang:1.17-alpine AS rover
-# Copy upx
+FROM --platform=$BUILDPLATFORM alpine:3.15 as terraform
+SHELL ["/bin/sh", "-cex"]
+ARG TF_VERSION="1.1.0"
+ARG TARGETOS TARGETARCH
+RUN wget -O tf.zip 'https://releases.hashicorp.com/terraform/'${TF_VERSION}'/terraform_'${TF_VERSION}'_'${TARGETOS}'_'${TARGETARCH}'.zip'; \
+  unzip tf.zip
+
+FROM --platform=$BUILDPLATFORM crazymax/goreleaser-xx:latest AS goreleaser-xx
+FROM --platform=$BUILDPLATFORM pratikimprowise/upx:3.96 AS upx
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS base
+COPY --from=goreleaser-xx / /
 COPY --from=upx / /
+ENV CGO_ENABLED=0
+RUN apk --update add --no-cache git ca-certificates && \
+  update-ca-certificates
 WORKDIR /src
-# Install certs to copy it in build image
-RUN apk add --no-cache ca-certificates && update-ca-certificates
-# Copy go.mod and go.sum
-COPY go.* .
-# Download go mods
-RUN go mod download
-# Copy source
+
+FROM base AS vendored
+RUN --mount=type=bind,target=.,rw \
+  --mount=type=cache,target=/go/pkg/mod \
+  go mod tidy && go mod download
+
+FROM vendored AS binary
+ARG TARGETPLATFORM
+COPY --from=ui /src/dist /src/ui/dist
 COPY . .
-# Copy ui/dist from ui stage as it needs to embedded
-COPY --from=ui ./src/dist ./ui/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w"
-RUN upx -9 rover || true
-# Release stage
-FROM scratch as release
+RUN --mount=type=cache,target=/root/.cache \
+  --mount=type=cache,target=/go/pkg/mod \
+  goreleaser-xx --debug \
+    --name="rover" \
+    --main="." \
+    --dist="/out" \
+    --artifacts="bin" \
+    --snapshot="no" \
+    --post-hooks="sh -cx 'upx --ultra-brute --best /usr/local/bin/rover || true'"
+
+FROM scratch
 WORKDIR /tmp
 WORKDIR /src
-# Copy terraform binary to default terraform path
-COPY --from=terraform /bin/terraform  /usr/local/bin/terraform
-# Copy certs
-COPY --from=rover     /etc/ssl/certs/ /etc/ssl/certs/
-# Copy rover binary
-COPY --from=rover     /src/rover      /usr/local/bin/rover
+COPY --from=terraform /terraform           /usr/local/bin/terraform
+COPY --from=base      /etc/ssl/certs/      /etc/ssl/certs/
+COPY --from=binary    /usr/local/bin/rover /usr/local/bin/rover
 ENTRYPOINT ["/usr/local/bin/rover"]
