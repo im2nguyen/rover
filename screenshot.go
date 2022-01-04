@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 )
 
 // Heavily inspired by: https://github.com/chromedp/examples/blob/master/download_file/main.go
-func screenshot(ipPort string) {
+func screenshot(s *http.Server) {
 	// ctx, cancel := chromedp.NewContext(context.Background(), chromedp.WithDebugf(log.Printf))
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -22,7 +23,7 @@ func screenshot(ipPort string) {
 	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	url := fmt.Sprintf("http://%s", ipPort)
+	url := fmt.Sprintf("http://%s", s.Addr)
 
 	// this will be used to capture the file name later
 	var downloadGUID string
@@ -59,5 +60,8 @@ func screenshot(ipPort string) {
 		log.Fatal(e)
 	}
 
-	log.Println("Image generation complete")
+	log.Println("Image generation complete.")
+
+	// Shutdown http server
+	s.Shutdown(context.Background())
 }

@@ -171,7 +171,12 @@ func main() {
 
 	err = r.startServer(ipPort, frontendFS)
 	if err != nil {
-		log.Fatalf("Could not start server: %s\n", err.Error())
+		// http.Serve() returns error on shutdown
+		if genImage {
+			log.Println("Server shut down.")
+		} else {
+			log.Fatalf("Could not start server: %s\n", err.Error())
+		}
 	}
 
 }
