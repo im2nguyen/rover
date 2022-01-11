@@ -7,6 +7,7 @@ WORKDIR /src
 # Copy specific package files
 COPY ./ui/package-lock.json ./
 COPY ./ui/package.json ./
+COPY ./ui/babel.config.js ./
 # Set Progress, Config and install
 RUN npm set progress=false && npm config set depth 0 && npm install
 # Copy source
@@ -34,6 +35,9 @@ RUN cp /bin/terraform /usr/local/bin/terraform
 # Copy rover binary
 COPY --from=rover /src/rover /bin/rover
 RUN chmod +x /bin/rover
+
+# Install Google Chrome
+RUN apk add chromium
 
 WORKDIR /src
 
