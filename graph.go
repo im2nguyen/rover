@@ -176,12 +176,8 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 				pid = strings.TrimSuffix(pid, ".")
 			}
 
-			label := strings.TrimPrefix(id, pid)
-			label = strings.TrimPrefix(label, ".")
-			label = strings.TrimPrefix(label, "module.")
-			label = strings.TrimPrefix(label, "local.")
-			label = strings.TrimPrefix(label, "output.")
-			label = strings.TrimPrefix(label, "var.")
+			ls := strings.Split(id, ".")
+			label := ls[len(ls)-1]
 
 			//fmt.Printf("%v - %v\n", id, re.Type)
 
