@@ -13,6 +13,7 @@
     "core-js": "^3.6.5",
     "cytoscape-klay": "^3.1.4",
     "cytoscape-node-html-label": "^1.2.2",
+    "cytoscape-svg": "^0.3.1",
     "file-saver": "^2.0.5",
     "vue": "^2.6.11",
     "vue-cytoscape": "^1.0.8",

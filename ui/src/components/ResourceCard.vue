@@ -50,17 +50,17 @@
           }}{{ content.resource_type ? content.resource_type : "" }}
         </p>
       </div>
-      <div class="col col-2 text-right" v-if="!isChild">
+      <div class="col col-2 text-right" v-if="content.line">
         Line: # <span class="line-number">{{ content.line }}</span>
       </div>
     </div>
-    <template v-for="(val, resourceId) in content.children">
-      <transition-group name="resources" :key="resourceId">
+    <template v-for="resource in sortedResources">
+      <transition-group name="resources" :key="resource[0]">
         <resource-card
-          :key="resourceId"
-          :id="resourceId"
-          :content="val"
-          :isChild="true"
+          :key="resource[0]"
+          :id="resource[0]"
+          :content="resource[1]"
+          :isChild="false"
           v-if="showChildren"
           :handle-click="handleClick"
         />
@@ -120,6 +120,18 @@ export default {
           return "collapse";
         }
         return "expand";
+      }
+      return null;
+    },
+    sortedResources() {
+      // Sort by line number
+      if (this.content.children) {
+
+        const sorted = Object.entries(this.content.children).sort(
+          (x, y) => x[1].line - y[1].line
+        );
+
+        return sorted
       }
       return null;
     },
@@ -295,7 +307,7 @@ export default {
   border-color: #ffc107;
 }
 
-.resource-card.destroy {
+.resource-card.delete {
   border-color: #e40707;
 }
 

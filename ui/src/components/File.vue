@@ -44,7 +44,7 @@ export default {
   },
   methods: {
     selectResource(resourceID) {
-      this.$emit("selectResource", `${this.fileName}/${resourceID}`);
+      this.$emit("selectResource", resourceID);
     },
   },
   computed: {

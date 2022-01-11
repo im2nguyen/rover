@@ -10,6 +10,7 @@
 <script>
 import { saveAs } from "file-saver";
 import klay from "cytoscape-klay";
+import svg from 'cytoscape-svg';
 import nodeHtmlLabel from "cytoscape-node-html-label";
 import axios from "axios";
 
@@ -226,7 +227,7 @@ const config = {
       },
     },
     {
-      selector: ".destroy",
+      selector: ".delete",
       css: {
         "background-color": "#e40707",
         color: "white",
@@ -306,6 +307,7 @@ export default {
   methods: {
     preConfig(cy) {
       cy.use(klay);
+      cy.use(svg);
 
       // Only load nodeHtmlLabel once
       if (typeof cy("core", "nodeHtmlLabel") !== "function") {
@@ -398,6 +400,7 @@ export default {
         var n = event.target;
 
         let node = { id: n.data().id, in: [], out: [] };
+        
         const ce = n.connectedEdges();
         for (let i = 0; i < ce.length; i += 1) {
           let ed = ce[i].data();
@@ -426,16 +429,7 @@ export default {
           vm.highlightNodePaths(n);
         }
 
-        const na = n.ancestors();
-        let nodeID = [];
-
-        for (let i = na.length - 1; i > 0; i--) {
-          nodeID.push(na[i].id());
-        }
-
-        nodeID.push(n.id());
-
-        vm.$emit("getNode", nodeID.join("/"));
+        vm.$emit("getNode", node.id);
       });
 
       // Add hover event
@@ -466,9 +460,7 @@ export default {
               return e;
             }
           })
-          .not(node)
-          .not(node.parent())
-          .not(node.parent().parent())
+          .not(node.ancestors())
           .addClass("semitransp");
 
         node
@@ -490,7 +482,10 @@ export default {
     },
     saveGraph: function () {
       let cy = this.$refs.cy.instance;
-      saveAs(cy.png({ full: true }), `rover.png`);
+      var svgContent = cy.svg({scale: 0.1, full: true});
+			var blob = new Blob([svgContent], {type:"image/svg+xml;charset=utf-8"});
+			saveAs(blob, "rover.svg");
+			
     },
     runLayouts: function () {
       let cy = this.$refs.cy.instance;
@@ -516,6 +511,7 @@ export default {
     } else {
       axios.get(`/api/graph`).then((response) => {
         this.graph = response.data;
+        //console.log(this.graph)
         this.renderGraph();
       });
     }
@@ -562,7 +558,7 @@ export default {
   border: 0;
 }
 
-.destroy {
+.delete {
   /* background-color: #ffe9e9;
   border: 5px solid #e40707; */
   background-color: #e40707;
