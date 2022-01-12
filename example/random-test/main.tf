@@ -27,7 +27,7 @@ locals {
   random_dog = random_pet.dog.id
 }
 
-/*resource "random_pet" "bird" {
+resource "random_pet" "bird" {
   length = random_integer.pet_length.result
   prefix = local.random_dog
 }
@@ -81,4 +81,4 @@ data "http" "terraform_metadata" {
 output "terraform_metadata" {
   description = "Terraform metadata"
   value = data.http.terraform_metadata.body
-}*/
+}
