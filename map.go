@@ -131,7 +131,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 		}
 		// Add variables and Outputs if no configuration files
-	} else if configs[parentConfig].ModuleConfig.Module != nil && parentConfigured && !states[parentModule].IsParent {
+	} else if configs[parentConfig] != nil && configs[parentConfig].ModuleConfig.Module != nil && parentConfigured && !states[parentModule].IsParent {
 		for oName, o := range configs[parentConfig].ModuleConfig.Module.Outputs {
 			oid := fmt.Sprintf("%soutput.%s", prefix, oName)
 			out := &Resource{
@@ -242,7 +242,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 		}
 
 		// Add locals
-		if !(re.Type == ResourceTypeModule && childIndex.MatchString(id)) {
+		if configs[configId] != nil && !(re.Type == ResourceTypeModule && childIndex.MatchString(id)) {
 			expressions := map[string]*tfjson.Expression{}
 
 			if re.Type == ResourceTypeResource {
