@@ -249,7 +249,7 @@ func (r *rover) GenerateResourceOverview() error {
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
 	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
 
-	r.PopulateConfigs("", "", rso, r.Plan.Config.RootModule)
+	r.PopulateConfigs("", r.WorkingDir, rso, r.Plan.Config.RootModule)
 
 	// Populate prior state
 	if r.Plan.PriorState != nil {
