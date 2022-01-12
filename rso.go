@@ -96,10 +96,12 @@ func (r *rover) PopulateConfigs(parent string, parentPath string, rso *Resources
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
 		}
 
-		child, _ := tfconfig.LoadModule(childPath)
+		if r.TFConfigExists {
+			child, _ := tfconfig.LoadModule(childPath)
+			rc[mn].Module = child
+		}
 
 		rc[mn].ModuleConfig = m
-		rc[mn].Module = child
 
 		r.PopulateConfigs(mn, childPath, rso, m.Module)
 	}
@@ -241,10 +243,13 @@ func (r *rover) GenerateResourceOverview() error {
 
 	// Create root module configuration
 	rc[""] = &ConfigOverview{}
-	rc[""].Module = r.Config
+	if r.TFConfigExists {
+		rc[""].Module = r.Config
+	}
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
+	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
 
-	r.PopulateConfigs("", "", rso, r.Plan.Config.RootModule)
+	r.PopulateConfigs("", r.WorkingDir, rso, r.Plan.Config.RootModule)
 
 	// Populate prior state
 	if r.Plan.PriorState != nil {
