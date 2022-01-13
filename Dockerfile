@@ -1,3 +1,5 @@
+# syntax = docker/dockerfile:1.3
+
 ARG NODE_VERSION=16
 ARG GO_VERSION=1.17
 
@@ -11,7 +13,7 @@ RUN npm run build
 
 FROM --platform=$BUILDPLATFORM alpine:3.15 as terraform
 SHELL ["/bin/sh", "-cex"]
-ARG TF_VERSION="1.1.0"
+ARG TF_VERSION="1.1.2"
 ARG TARGETOS TARGETARCH
 RUN wget -O tf.zip 'https://releases.hashicorp.com/terraform/'${TF_VERSION}'/terraform_'${TF_VERSION}'_'${TARGETOS}'_'${TARGETARCH}'.zip'; \
   unzip tf.zip
@@ -42,13 +44,63 @@ RUN --mount=type=cache,target=/root/.cache \
     --main="." \
     --dist="/out" \
     --artifacts="bin" \
-    --snapshot="no" \
-    --post-hooks="sh -cx 'upx --ultra-brute --best /usr/local/bin/rover || true'"
+    --artifacts="archive" \
+    --snapshot="no"
 
-FROM scratch
+FROM scratch as fat
 WORKDIR /tmp
 WORKDIR /src
+COPY --from=base      /etc/ssl/certs/ /etc/ssl/certs/
 COPY --from=terraform /terraform           /usr/local/bin/terraform
-COPY --from=base      /etc/ssl/certs/      /etc/ssl/certs/
 COPY --from=binary    /usr/local/bin/rover /usr/local/bin/rover
 ENTRYPOINT ["/usr/local/bin/rover"]
+##
+
+## Slim image
+FROM vendored AS binary-slim
+COPY --from=ui /src/dist /src/ui/dist
+COPY . .
+ARG TARGETPLATFORM
+RUN --mount=type=cache,target=/root/.cache \
+  --mount=type=cache,target=/go/pkg/mod \
+  goreleaser-xx --debug \
+    --name="rover-slim" \
+    --flags="-trimpath" \
+    --ldflags="-s -w" \
+    --main="." \
+    --dist="/out" \
+    --artifacts="bin" \
+    --artifacts="archive" \
+    --snapshot="no" \
+    --post-hooks="upx -v --ultra-brute --best /usr/local/bin/{{ .ProjectName }}{{ .Ext }}"
+
+FROM terraform as slim-tf
+COPY --from=upx / /
+RUN upx -v --ultra-brute --best /terraform
+
+FROM scratch as slim
+WORKDIR /tmp
+WORKDIR /src
+COPY --from=base    /etc/ssl/certs/ /etc/ssl/certs/
+COPY --from=slim-tf /terraform /usr/local/bin/terraform
+COPY --from=binary-slim /usr/local/bin/rover-slim /usr/local/bin/rover
+ENTRYPOINT ["/usr/local/bin/rover"]
+##
+
+## get binary out
+### non slim binary
+FROM scratch AS artifact
+COPY --from=binary      /out /
+###
+
+### slim binary
+FROM scratch AS artifact-slim
+COPY --from=binary-slim /out /
+###
+
+### All binaries
+FROM scratch AS artifact-all
+COPY --from=binary      /out /
+COPY --from=binary-slim /out /
+###
+##

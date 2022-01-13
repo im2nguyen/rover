@@ -30,38 +30,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v3
-        with:
-          images: im2nguyen/rover
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=edge
-            type=sha,prefix=,format=short
-          labels: |
-            org.opencontainers.image.title=rover
-            org.opencontainers.image.base.name=scratch
-            org.opencontainers.image.vendor=im2nguyen
-            org.opencontainers.image.authors=im2nguyen
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.description=Interactive Terraform visualization. State and configuration explorer.
-            org.opencontainers.image.version={{version}}
-            org.opencontainers.image.source=https://github.com/im2nguyen/rover
+      - name: Set outputs
+        run: |
+          echo ::set-output name=version::$(cat ${GITHUB_EVENT_PATH} | jq -r '.release.tag_name')
+          echo ::set-output name=sha_short::${GITHUB_SHA::7}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
+      - name: Build and push
+        uses: docker/bake-action@master
+        env:
+          TF_VERSION: "1.1.2"
+          NODE_VERSION: "16"
+          GO_VERSION: "1.17"
+          VERSION: ${{ steps.vars.outputs.version }}
+          GIT_SHA: ${{ steps.vars.outputs.sha_short }}
         with:
-          context: .
-          platforms: linux/386,linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
+          targets: |
+            image-all
+            image-slim-all-arch
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            TF_VERSION=1.1.2
-            NODE_VERSION=16
-            GO_VERSION=1.17.5
+          files: docker-bake.hcl
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
