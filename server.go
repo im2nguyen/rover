@@ -6,20 +6,25 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	// tfjson "github.com/hashicorp/terraform-json"
 )
 
 func (ro *rover) startServer(ipPort string, frontendFS http.Handler) error {
-	http.Handle("/", frontendFS)
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+
+	m := http.NewServeMux()
+	s := http.Server{Addr: ipPort, Handler: m}
+
+	m.Handle("/", frontendFS)
+	m.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		// simple healthcheck
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{"alive": true}`)
 	})
-	http.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		fileType := strings.Replace(r.URL.Path, "/api/", "", 1)
 
 		var j []byte
@@ -58,5 +63,17 @@ func (ro *rover) startServer(ipPort string, frontendFS http.Handler) error {
 
 	log.Printf("Rover is running on %s", ipPort)
 
-	return http.ListenAndServe(ipPort, nil)
+	l, err := net.Listen("tcp", ipPort)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// The browser can connect now because the listening socket is open.
+	if ro.GenImage {
+		go screenshot(&s)
+	}
+
+	// Start the blocking server loop.
+	return s.Serve(l)
+
 }

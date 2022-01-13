@@ -4,40 +4,227 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
 // ResourcesOverview represents the root module
 type ResourcesOverview struct {
-	Variables map[string]*VariableOverview `json:"variables,omitempty"`
-	Outputs   map[string]*OutputOverview   `json:"output,omitempty"`
-	Resources map[string]*ResourceOverview `json:"resources,omitempty"`
-}
-
-type VariableOverview struct {
-	Value     interface{} `json:"value,omitempty"`
-	Sensitive *bool       `json:"sensitive,omitempty"`
+	States  map[string]*StateOverview  `json:"states,omitempty"`
+	Configs map[string]*ConfigOverview `json:"configs,omitempty"`
 }
 
 // ResourceOverview is a modified tfjson.Plan
-type ResourceOverview struct {
+type StateOverview struct {
 	// ChangeAction tfjson.Actions        `json:change_action`
-	PriorState   map[string]interface{}       `json:"prior_state,omitempty"`
-	PlannedState map[string]interface{}       `json:"planned_state,omitempty"`
-	Change       tfjson.Change                `json:"change,omitempty"`
-	Config       tfjson.ConfigResource        `json:"config,omitempty"`
-	ModuleConfig *tfjson.ModuleCall           `json:"module_config,omitempty"`
-	DependsOn    []string                     `json:"depends_on,omitempty"`
-	Children     map[string]*ResourceOverview `json:"children,omitempty"`
+	ConfigId  string                    `json:"config_id,omitempty"`
+	Change    tfjson.Change             `json:"change,omitempty"`
+	Module    *tfjson.StateModule       `json:"module,omitempty"`
+	DependsOn []string                  `json:"depends_on,omitempty"`
+	Children  map[string]*StateOverview `json:"children,omitempty"`
+	Type      ResourceType              `json:"type,omitempty"`
+	IsParent  bool                      `json:"isparent,omitempty"`
 }
 
-// OutputOverview is a modified tfjson.Change with Outputs
-type OutputOverview struct {
-	// ChangeAction tfjson.Actions        `json:change_action`
-	Change *tfjson.Change       `json:"change"`
-	Config *tfjson.ConfigOutput `json:"config,omitempty"`
+type ConfigOverview struct {
+	ResourceConfig *tfjson.ConfigResource `json:"resource_config,omitempty"`
+	ModuleConfig   *tfjson.ModuleCall     `json:"module_config,omitempty"`
+	VariableConfig *tfjson.ConfigVariable `json:"variable_config,omitempty"`
+	OutputConfig   *tfjson.ConfigOutput   `json:"output_config,omitempty"`
+	Module         *tfconfig.Module       `json:"module,omitempty"`
+}
+
+func (r *rover) PopulateConfigs(parent string, parentPath string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
+
+	rc := rso.Configs
+
+	prefix := parent
+	if prefix != "" {
+		prefix = fmt.Sprintf("%s.", prefix)
+	}
+
+	// Loop through variable configs
+	for variableName, variable := range config.Variables {
+		variableName = fmt.Sprintf("%svar.%s", prefix, variableName)
+		if _, ok := rc[variableName]; !ok {
+			rc[variableName] = &ConfigOverview{}
+		}
+		rc[variableName].VariableConfig = variable
+	}
+
+	// Loop through output configs
+	for outputName, output := range config.Outputs {
+		outputName = fmt.Sprintf("%soutput.%s", prefix, outputName)
+		if _, ok := rc[outputName]; !ok {
+			rc[outputName] = &ConfigOverview{}
+		}
+		rc[outputName].OutputConfig = output
+	}
+
+	// Loop through each resource type and populate graph
+	for _, resource := range config.Resources {
+
+		address := fmt.Sprintf("%v%v", prefix, resource.Address)
+
+		if _, ok := rc[address]; !ok {
+			rc[address] = &ConfigOverview{}
+		}
+
+		rc[address].ResourceConfig = resource
+		//rc[address].DependsOn = resource.DependsOn
+
+		if _, ok := rc[parent]; !ok {
+			rc[parent] = &ConfigOverview{}
+		}
+	}
+
+	// Add modules
+	for moduleName, m := range config.ModuleCalls {
+
+		mn := fmt.Sprintf("module.%s", moduleName)
+		if prefix != "" {
+			mn = fmt.Sprintf("%s%s", prefix, mn)
+		}
+
+		if _, ok := rc[mn]; !ok {
+			rc[mn] = &ConfigOverview{}
+		}
+
+		childPath := m.Source
+		if parentPath != "" {
+			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
+		}
+
+		if r.TFConfigExists {
+			child, _ := tfconfig.LoadModule(childPath)
+			rc[mn].Module = child
+		}
+
+		rc[mn].ModuleConfig = m
+
+		r.PopulateConfigs(mn, childPath, rso, m.Module)
+	}
+}
+
+func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.StateModule, prior bool) {
+	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
+
+	rs := rso.States
+
+	// Loop through each resource type and populate states
+	for _, rst := range module.Resources {
+		id := rst.Address
+		parent := module.Address
+		//fmt.Printf("ID: %v\n", id)
+		if rst.AttributeValues != nil {
+			configId := matchBrackets.ReplaceAllString(id, "")
+
+			// Add resource to parent
+			// Create resource if doesn't exist
+			if _, ok := rs[id]; !ok {
+				rs[id] = &StateOverview{}
+				rs[id].ConfigId = configId
+				if rst.Mode == "data" {
+					rs[id].Type = ResourceTypeData
+				} else {
+					rs[id].Type = ResourceTypeResource
+				}
+			}
+
+			if _, ok := rs[parent]; !ok {
+				rs[parent] = &StateOverview{}
+				rs[parent].Children = make(map[string]*StateOverview)
+			}
+
+			// Check if resource has parent
+			// part of, resource w/ count or for_each
+			if childIndex.MatchString(id) {
+				parent = childIndex.ReplaceAllString(id, "")
+				// If resource has parent, create parent if doesn't exist
+				if _, ok := rs[parent]; !ok {
+					rs[parent] = &StateOverview{}
+					rs[parent].Children = make(map[string]*StateOverview)
+					rs[parent].Type = ResourceTypeResource
+
+				}
+
+				rs[module.Address].Children[parent] = rs[parent]
+
+				rs[parent].ConfigId = matchBrackets.ReplaceAllString(parent, "")
+			}
+
+			//fmt.Printf("%v - %v\n", id, parent)
+			rs[parent].Children[id] = rs[id]
+
+			if prior {
+				rs[id].Change.Before = rst.AttributeValues
+			} else {
+				rs[id].Change.After = rst.AttributeValues
+			}
+
+		} else {
+			if prior {
+				rs[id].Change.Before = rst.AttributeValues
+			} else {
+				rs[id].Change.After = rst.AttributeValues
+
+			}
+		}
+
+	}
+
+	for _, childModule := range module.ChildModules {
+
+		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
+
+		parent := module.Address
+		parentConfig := matchBrackets.ReplaceAllString(parent, "")
+
+		id := childModule.Address
+		configId := matchBrackets.ReplaceAllString(id, "")
+
+		if _, ok := rs[parent]; !ok {
+			rs[parent] = &StateOverview{}
+			rs[parent].Children = make(map[string]*StateOverview)
+			rs[parent].ConfigId = parentConfig
+			rs[parent].Type = ResourceTypeModule
+		}
+
+		if childIndex.MatchString(id) {
+			parent = childIndex.ReplaceAllString(id, "")
+
+			// If module has parent, create parent if doesn't exist
+			if _, ok := rs[parent]; !ok {
+				rs[parent] = &StateOverview{}
+				rs[parent].Children = make(map[string]*StateOverview)
+				rs[parent].ConfigId = configId
+				rs[parent].Type = ResourceTypeModule
+				rs[parent].IsParent = true
+			}
+
+			rs[module.Address].Children[parent] = rs[parent]
+		}
+
+		if rs[parent].Module == nil {
+			rs[parent].Module = module
+		}
+
+		if _, ok := rs[id]; !ok {
+			rs[id] = &StateOverview{}
+			rs[id].Children = make(map[string]*StateOverview)
+			rs[id].ConfigId = configId
+			rs[id].Type = ResourceTypeModule
+		}
+
+		rs[id].Module = childModule
+
+		rs[parent].Children[id] = rs[id]
+
+		r.PopulateModuleState(rso, childModule, prior)
+	}
+
 }
 
 // GenerateResourceOverview - Overview of files and their resources
@@ -45,41 +232,49 @@ type OutputOverview struct {
 func (r *rover) GenerateResourceOverview() error {
 	log.Println("Generating resource overview...")
 
+	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 	rso := &ResourcesOverview{}
 
-	// Loop through variables
-	vars := make(map[string]*VariableOverview)
-	for varName, variable := range r.Plan.Variables {
-		if _, ok := vars[varName]; !ok {
-			vars[varName] = &VariableOverview{}
-		}
+	rso.Configs = make(map[string]*ConfigOverview)
+	rso.States = make(map[string]*StateOverview)
 
-		vars[varName].Value = variable.Value
+	rc := rso.Configs
+	rs := rso.States
+
+	// Create root module configuration
+	rc[""] = &ConfigOverview{}
+	if r.TFConfigExists {
+		rc[""].Module = r.Config
+	}
+	rc[""].ModuleConfig = &tfjson.ModuleCall{}
+	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
+
+	r.PopulateConfigs("", r.WorkingDir, rso, r.Plan.Config.RootModule)
+
+	// Populate prior state
+	if r.Plan.PriorState != nil {
+		if r.Plan.PriorState.Values != nil {
+			if r.Plan.PriorState.Values.RootModule != nil {
+				r.PopulateModuleState(rso, r.Plan.PriorState.Values.RootModule, true)
+			}
+		}
 	}
 
-	// If variable is sensitive and show sensitive is off, replace value with "Sensitive Value"
-	for varName, variable := range r.Plan.Config.RootModule.Variables {
-		vars[varName].Sensitive = &variable.Sensitive
-
-		if !r.ShowSensitive && variable.Sensitive {
-			vars[varName].Value = "Sensitive Value"
+	// Populate planned state
+	if r.Plan.PlannedValues != nil {
+		if r.Plan.PlannedValues.RootModule != nil {
+			r.PopulateModuleState(rso, r.Plan.PlannedValues.RootModule, false)
 		}
 	}
-	rso.Variables = vars
 
-	// Loop through outputs
-	oo := make(map[string]*OutputOverview)
-	// Loop through output configs
-	for outputName, output := range r.Plan.Config.RootModule.Outputs {
-		if _, ok := oo[outputName]; !ok {
-			oo[outputName] = &OutputOverview{}
-		}
-		oo[outputName].Config = output
-	}
+	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
+	// reGetParent := regexp.MustCompile(`^\w+\.\w+`)
+	//reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+
 	// Loop through output changes
 	for outputName, output := range r.Plan.OutputChanges {
-		if _, ok := oo[outputName]; !ok {
-			oo[outputName] = &OutputOverview{}
+		if _, ok := rs[outputName]; !ok {
+			rs[outputName] = &StateOverview{}
 		}
 
 		// If before/after sensitive, set value to "Sensitive Value"
@@ -87,7 +282,7 @@ func (r *rover) GenerateResourceOverview() error {
 			if output.BeforeSensitive != nil {
 				if output.BeforeSensitive.(bool) {
 					output.Before = "Sensitive Value"
-				}	
+				}
 			}
 			if output.AfterSensitive != nil {
 				if output.AfterSensitive.(bool) {
@@ -96,167 +291,50 @@ func (r *rover) GenerateResourceOverview() error {
 			}
 		}
 
-		oo[outputName].Change = output
-	}
-
-	rso.Outputs = oo
-
-	rs := make(map[string]*ResourceOverview)
-
-	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
-	// reGetParent := regexp.MustCompile(`^\w+\.\w+`)
-	reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
-	reGetParent := regexp.MustCompile(`^\w+\.[\w-]+`)
-
-	// Loop through each resource type and populate graph
-	for _, rc := range r.Plan.Config.RootModule.Resources {
-		if _, ok := rs[rc.Address]; !ok {
-			rs[rc.Address] = &ResourceOverview{}
-		}
-
-		rs[rc.Address].Config = *rc
-		rs[rc.Address].DependsOn = rc.DependsOn
-	}
-
-	// Add modules
-	for moduleName, m := range r.Plan.Config.RootModule.ModuleCalls {
-		mn := fmt.Sprintf("module.%s", moduleName)
-
-		if _, ok := rs[mn]; !ok {
-			rs[mn] = &ResourceOverview{}
-		}
-
-		rs[mn].ModuleConfig = m
+		rs[outputName].Change = *output
+		rs[outputName].Type = ResourceTypeOutput
 	}
 
 	// Loop through resource changes
-	for _, rc := range r.Plan.ResourceChanges {
-		id := rc.Address
-		var parent string
+	for _, resource := range r.Plan.ResourceChanges {
+		id := resource.Address
+		configId := matchBrackets.ReplaceAllString(id, "")
+		parent := resource.ModuleAddress
 
-		// Check if resource has parent
-		// part of module, resource w/ count or for_each
-		if reIsChild.MatchString(id) {
-			parent = reGetParent.FindString(id)
+		if resource.Change != nil {
 
-			// If resource has parent, create parent if doesn't exist
+			// If has parent, create parent if doesn't exist
 			if _, ok := rs[parent]; !ok {
-				rs[parent] = &ResourceOverview{}
+				rs[parent] = &StateOverview{}
+				rs[parent].Children = make(map[string]*StateOverview)
 			}
 
-			if rs[parent].Children == nil {
-				rs[parent].Children = make(map[string]*ResourceOverview)
-			}
-		}
-
-		if rc.Change != nil {
 			// Add resource to parent
-			if parent != "" {
-				// Create resource if doesn't exist
-				if _, ok := rs[parent].Children[id]; !ok {
-					rs[parent].Children[id] = &ResourceOverview{}
+			// Create resource if doesn't exist
+			if _, ok := rs[id]; !ok {
+				rs[id] = &StateOverview{}
+				if resource.Mode == "data" {
+					rs[id].Type = ResourceTypeData
+				} else {
+					rs[id].Type = ResourceTypeResource
 				}
-				rs[parent].Children[id].Change = *rc.Change
+				rs[parent].Children[id] = rs[id]
+			}
+			rs[id].Change = *resource.Change
+
+			// Create resource config if doesn't exist
+			if _, ok := rc[configId]; !ok {
+				rc[configId] = &ConfigOverview{}
+				rc[configId].ResourceConfig = &tfjson.ConfigResource{}
 
 				// Add type and name since it's missing
 				// TODO: Find long term fix
-				rs[parent].Children[id].Config.Name = strings.ReplaceAll(rc.Address, fmt.Sprintf("%s.%s.", parent, rc.Type), "")
-				rs[parent].Children[id].Config.Type = rc.Type
-			} else {
-				rs[rc.Address].Change = *rc.Change
+				rc[configId].ResourceConfig.Name = resource.Name
+				rc[configId].ResourceConfig.Type = resource.Type
 			}
+
 		}
 	}
-
-	// Populate prior state
-	if r.Plan.PriorState != nil {
-		if r.Plan.PriorState.Values != nil {
-			if r.Plan.PriorState.Values.RootModule != nil {
-				for _, rst := range r.Plan.PriorState.Values.RootModule.Resources {
-					id := rst.Address
-					var parent string
-
-					// Check if resource has parent
-					// part of module, resource w/ count or for_each
-					if reIsChild.MatchString(id) {
-						parent = reGetParent.FindString(id)
-
-						// If resource has parent, create parent if doesn't exist
-						if _, ok := rs[parent]; !ok {
-							rs[parent] = &ResourceOverview{}
-						}
-
-						if rs[parent].Children == nil {
-							rs[parent].Children = make(map[string]*ResourceOverview)
-						}
-					}
-
-					if rst.AttributeValues != nil {
-						// Add resource to parent
-						if parent != "" {
-							// Create resource if doesn't exist
-							if _, ok := rs[parent].Children[id]; !ok {
-								rs[parent].Children[id] = &ResourceOverview{}
-							}
-							rs[parent].Children[id].PriorState = rst.AttributeValues
-
-							// Add type and name since it's missing
-							// TODO: Find long term fix
-							rs[parent].Children[id].Config.Name = strings.ReplaceAll(rst.Address, fmt.Sprintf("%s.%s.", parent, rst.Type), "")
-							rs[parent].Children[id].Config.Type = rst.Type
-						} else {
-							rs[rst.Address].PriorState = rst.AttributeValues
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Populate planned state
-	if r.Plan.PlannedValues != nil {
-		if r.Plan.PlannedValues.RootModule != nil {
-			for _, rps := range r.Plan.PlannedValues.RootModule.Resources {
-				id := rps.Address
-				var parent string
-
-				// Check if resource has parent
-				// part of module, resource w/ count or for_each
-				if reIsChild.MatchString(id) {
-					parent = reGetParent.FindString(id)
-
-					// If resource has parent, create parent if doesn't exist
-					if _, ok := rs[parent]; !ok {
-						rs[parent] = &ResourceOverview{}
-					}
-
-					if rs[parent].Children == nil {
-						rs[parent].Children = make(map[string]*ResourceOverview)
-					}
-				}
-
-				if rps.AttributeValues != nil {
-					// Add resource to parent
-					if parent != "" {
-						// Create resource if doesn't exist
-						if _, ok := rs[parent].Children[id]; !ok {
-							rs[parent].Children[id] = &ResourceOverview{}
-						}
-						rs[parent].Children[id].PlannedState = rps.AttributeValues
-
-						// Add type and name since it's missing
-						// TODO: Find long term fix
-						rs[parent].Children[id].Config.Name = strings.ReplaceAll(rps.Address, fmt.Sprintf("%s.%s.", parent, rps.Type), "")
-						rs[parent].Children[id].Config.Type = rps.Type
-					} else {
-						rs[rps.Address].PlannedState = rps.AttributeValues
-					}
-				}
-			}
-		}
-	}
-
-	rso.Resources = rs
 
 	r.RSO = rso
 
