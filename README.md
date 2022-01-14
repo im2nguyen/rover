@@ -156,6 +156,8 @@ There are two varient of image
 
 2. Slim: rover and terraform compressed by [UPX](https://github.com/upx/upx)
 
+  > Slim images will take little more time to build as terraform and rover both pass through upx compression
+
 - e.g., `docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover:slim`
 
 > Create docker buildx builder when first time using
