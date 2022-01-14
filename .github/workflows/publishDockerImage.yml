@@ -46,7 +46,7 @@ jobs:
         with:
           targets: |
             image-all
-            image-slim-all-arch
+            image-slim-all
           push: ${{ github.event_name != 'pull_request' }}
           files: docker-bake.hcl
           set: |

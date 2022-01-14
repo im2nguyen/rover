@@ -172,10 +172,10 @@ docker buildx bake
 docker buildx bake slim
 
 ## build multi-platform image
-docker buildx bake image-all-arch
+docker buildx bake image-all
 
 ## build multi-platform slim image
-docker buildx bake image-slim
+docker buildx bake image-slim-all
 
 ```
 

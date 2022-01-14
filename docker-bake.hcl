@@ -120,13 +120,13 @@ target "image-slim" {
 }
 
 # Creating fat container image for all platforms
-target "image-all-arch" {
+target "image-all" {
   inherits = ["_common", "image-platform", "_fat", "_labels"]
   target   = "fat"
 }
 
 # Creating slim container image for all platforms
-target "image-slim-all-arch" {
+target "image-slim-all" {
   inherits = ["_common", "image-platform", "_slim", "_labels"]
   target   = "slim"
 }
