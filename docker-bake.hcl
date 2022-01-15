@@ -50,7 +50,7 @@ target "_common" {
 
 target "_labels" {
   labels = {
-    "org.opencontainers.image.title"         = "actions-runner-controller",
+    "org.opencontainers.image.title"         = "rover",
     "org.opencontainers.image.base.name "    = "scratch",
     "org.opencontainers.image.licenses"      = "MIT",
     "org.opencontainers.image.description"   = " Interactive Terraform visualization. State and configuration explorer",
