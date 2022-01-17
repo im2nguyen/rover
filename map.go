@@ -158,7 +158,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 	for id, rs := range states[parentModule].Children {
 
 		configId := matchBrackets.ReplaceAllString(id, "")
-		configured := r.TFConfigExists && configs[parentConfig] != nil && configs[configId] != nil // If there is configuration for filenames, lines, etc.
+		configured := r.TFConfigExists && configs[parentConfig] != nil && configs[parentConfig].Module != nil && configs[configId] != nil // If there is configuration for filenames, lines, etc.
 
 		re := &Resource{
 			Type:     rs.Type,

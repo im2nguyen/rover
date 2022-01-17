@@ -2,3 +2,6 @@ rover
 .DS_Store
 rover.zip
 plan.out
+
+# Ignore generated terraform files
+.terraform**
