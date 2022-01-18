@@ -56,11 +56,9 @@ type rover struct {
 	WorkspaceName    string
 	TFCOrgName       string
 	TFCWorkspaceName string
-	TFConfigExists   bool
 	ShowSensitive    bool
 	GenImage         bool
 	TFCNewRun        bool
-	Config           *tfconfig.Module
 	Plan             *tfjson.Plan
 	RSO              *ResourcesOverview
 	Map              *Map
