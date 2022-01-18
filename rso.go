@@ -91,16 +91,18 @@ func (r *rover) PopulateConfigs(parent string, parentPath string, rso *Resources
 		}
 
 		childPath := m.Source
-		matchUrl := regexp.MustCompile("([a-zA-Z0-9]+://)?([a-zA-Z0-9_]+:[a-zA-Z0-9_]+@)?([a-zA-Z0-9.-]+\\.[A-Za-z]{2,4})(:[0-9]+)?(/.*)?")
 
-		if parentPath != "" && !matchUrl.MatchString(childPath) {
+		if parentPath != "" {
 			// Check if childPath contains url
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
 		}
 
-		if r.TFConfigExists && !matchUrl.MatchString(childPath) {
+		if r.TFConfigExists {
 			child, _ := tfconfig.LoadModule(childPath)
-			rc[mn].Module = child
+			// If module can be loaded from filesystem
+			if !child.Diagnostics.HasErrors() {
+				rc[mn].Module = child
+			}
 		}
 
 		rc[mn].ModuleConfig = m
