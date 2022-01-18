@@ -97,12 +97,10 @@ func (r *rover) PopulateConfigs(parent string, parentPath string, rso *Resources
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
 		}
 
-		if r.TFConfigExists {
-			child, _ := tfconfig.LoadModule(childPath)
-			// If module can be loaded from filesystem
-			if !child.Diagnostics.HasErrors() {
-				rc[mn].Module = child
-			}
+		child, _ := tfconfig.LoadModule(childPath)
+		// If module can be loaded from filesystem
+		if !child.Diagnostics.HasErrors() {
+			rc[mn].Module = child
 		}
 
 		rc[mn].ModuleConfig = m
@@ -247,9 +245,15 @@ func (r *rover) GenerateResourceOverview() error {
 
 	// Create root module configuration
 	rc[""] = &ConfigOverview{}
-	if r.TFConfigExists {
-		rc[""].Module = r.Config
+	rootModule, _ := tfconfig.LoadModule(r.WorkingDir)
+	// If module can be loaded from filesystem
+	if !rootModule.Diagnostics.HasErrors() {
+		rc[""].Module = rootModule
+	} else {
+		fmt.Printf("Could not load configuration from: %v\n", r.WorkingDir)
+		fmt.Printf("Continuing without configuration file data...")
 	}
+
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
 	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
 

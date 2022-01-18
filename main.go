@@ -69,7 +69,7 @@ type rover struct {
 
 func main() {
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, planJSONPath, workspaceName, tfcOrgName, tfcWorkspaceName string
-	var standalone, genImage, tfConfigExists, showSensitive, getVersion, tfcNewRun bool
+	var standalone, genImage, showSensitive, getVersion, tfcNewRun bool
 	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
 	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
@@ -82,7 +82,6 @@ func main() {
 	flag.StringVar(&tfcOrgName, "tfcOrg", "", "Terraform Cloud Organization name")
 	flag.StringVar(&tfcWorkspaceName, "tfcWorkspace", "", "Terraform Cloud Workspace name")
 	flag.BoolVar(&standalone, "standalone", false, "Generate standalone HTML files")
-	flag.BoolVar(&tfConfigExists, "tfConfigExists", true, "Terraform configuration exist - set to false if Terraform configuration unavailable (Terraform Cloud, Terragrunt, auto-generated HCL, CDKTF)")
 	flag.BoolVar(&showSensitive, "showSensitive", false, "Display sensitive values")
 	flag.BoolVar(&tfcNewRun, "tfcNewRun", false, "Create new Terraform Cloud run")
 	flag.BoolVar(&getVersion, "version", false, "Get current version")
@@ -126,7 +125,6 @@ func main() {
 		TfPath:           tfPath,
 		PlanPath:         planPath,
 		PlanJSONPath:     planJSONPath,
-		TFConfigExists:   tfConfigExists,
 		ShowSensitive:    showSensitive,
 		GenImage:         genImage,
 		TfVarsFiles:      parsedTfVarsFiles,
@@ -186,16 +184,6 @@ func (r *rover) generateAssets() error {
 	err := r.getPlan()
 	if err != nil {
 		return errors.New(fmt.Sprintf("Unable to parse Plan: %s", err))
-	}
-
-	if r.TFConfigExists {
-		// Parse Configuration
-		log.Println("Parsing configuration...")
-		// Get current directory file
-		r.Config, _ = tfconfig.LoadModule(r.WorkingDir)
-		if r.Config.Diagnostics.HasErrors() {
-			return errors.New(fmt.Sprintf("Unable to parse configuration: %s", r.Config.Diagnostics.Error()))
-		}
 	}
 
 	// Generate RSO, Map, Graph
