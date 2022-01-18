@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"regexp"
-
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	tfjson "github.com/hashicorp/terraform-json"
+	"log"
+	"regexp"
 )
 
 // ResourcesOverview represents the root module
@@ -92,11 +91,14 @@ func (r *rover) PopulateConfigs(parent string, parentPath string, rso *Resources
 		}
 
 		childPath := m.Source
-		if parentPath != "" {
+		matchUrl := regexp.MustCompile("([a-zA-Z0-9]+://)?([a-zA-Z0-9_]+:[a-zA-Z0-9_]+@)?([a-zA-Z0-9.-]+\\.[A-Za-z]{2,4})(:[0-9]+)?(/.*)?")
+
+		if parentPath != "" && !matchUrl.MatchString(childPath) {
+			// Check if childPath contains url
 			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
 		}
 
-		if r.TFConfigExists {
+		if r.TFConfigExists && !matchUrl.MatchString(childPath) {
 			child, _ := tfconfig.LoadModule(childPath)
 			rc[mn].Module = child
 		}

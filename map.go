@@ -97,7 +97,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 	}
 
 	parentConfig := matchBrackets.ReplaceAllString(parentModule, "")
-	parentConfigured := configs[parentConfig] != nil
+	parentConfigured := configs[parentConfig] != nil && configs[parentConfig].Module != nil
 
 	// Add variables and outputs with line numbers and file names if configured
 	if r.TFConfigExists && parentConfigured && !states[parentModule].IsParent {
