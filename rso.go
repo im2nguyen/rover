@@ -72,7 +72,7 @@ func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[str
 	json.Unmarshal(byteValue, &moduleLocations)
 
 	for _, loc := range moduleLocations.Locations {
-		locations[loc.Key] = loc.Dir
+		locations[loc.Key] = fmt.Sprintf("%s/%s", r.WorkingDir, loc.Dir)
 		//fmt.Printf("%v\n", loc.Dir)
 	}
 }
@@ -135,7 +135,7 @@ func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesO
 		}
 
 		childKey := strings.TrimPrefix(moduleName, "module.")
-		if parentKey != "." {
+		if parentKey != "" {
 			childKey = fmt.Sprintf("%s.%s", parentKey, childKey)
 		}
 
@@ -307,7 +307,7 @@ func (r *rover) GenerateResourceOverview() error {
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
 	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
 
-	r.PopulateConfigs("", r.WorkingDir, rso, r.Plan.Config.RootModule)
+	r.PopulateConfigs("", "", rso, r.Plan.Config.RootModule)
 
 	// Populate prior state
 	if r.Plan.PriorState != nil {
