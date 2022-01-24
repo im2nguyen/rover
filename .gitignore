@@ -4,3 +4,7 @@ rover.zip
 plan.out
 Dockerfile.test
 .dist
+
+# Ignore generated terraform files
+.terraform**
+.idea/
