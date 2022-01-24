@@ -23,7 +23,6 @@ type ResourcesOverview struct {
 // ResourceOverview is a modified tfjson.Plan
 type StateOverview struct {
 	// ChangeAction tfjson.Actions        `json:change_action`
-	ConfigId  string                    `json:"config_id,omitempty"`
 	Change    tfjson.Change             `json:"change,omitempty"`
 	Module    *tfjson.StateModule       `json:"module,omitempty"`
 	DependsOn []string                  `json:"depends_on,omitempty"`
@@ -60,7 +59,7 @@ func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[str
 
 	jsonFile, err := os.Open(moduleJSONFile)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("No submodule configurations found...")
 	}
 	defer jsonFile.Close()
 
@@ -145,7 +144,7 @@ func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesO
 		if !child.Diagnostics.HasErrors() {
 			rc[mn].Module = child
 		} else {
-			fmt.Printf("Continuing without loading module from filesystem: %s\n", childKey)
+			log.Printf("Continuing without loading module from filesystem: %s\n", childKey)
 		}
 
 		rc[mn].ModuleConfig = m
@@ -155,7 +154,6 @@ func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesO
 }
 
 func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.StateModule, prior bool) {
-	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 
 	rs := rso.States
@@ -166,13 +164,11 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 		parent := module.Address
 		//fmt.Printf("ID: %v\n", id)
 		if rst.AttributeValues != nil {
-			configId := matchBrackets.ReplaceAllString(id, "")
 
 			// Add resource to parent
 			// Create resource if doesn't exist
 			if _, ok := rs[id]; !ok {
 				rs[id] = &StateOverview{}
-				rs[id].ConfigId = configId
 				if rst.Mode == "data" {
 					rs[id].Type = ResourceTypeData
 				} else {
@@ -182,6 +178,8 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 
 			if _, ok := rs[parent]; !ok {
 				rs[parent] = &StateOverview{}
+				rs[parent].Type = ResourceTypeModule
+				rs[parent].IsParent = false
 				rs[parent].Children = make(map[string]*StateOverview)
 			}
 
@@ -199,7 +197,6 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 
 				rs[module.Address].Children[parent] = rs[parent]
 
-				rs[parent].ConfigId = matchBrackets.ReplaceAllString(parent, "")
 			}
 
 			//fmt.Printf("%v - %v\n", id, parent)
@@ -224,19 +221,15 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 
 	for _, childModule := range module.ChildModules {
 
-		matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
-
 		parent := module.Address
-		parentConfig := matchBrackets.ReplaceAllString(parent, "")
 
 		id := childModule.Address
-		configId := matchBrackets.ReplaceAllString(id, "")
 
 		if _, ok := rs[parent]; !ok {
 			rs[parent] = &StateOverview{}
 			rs[parent].Children = make(map[string]*StateOverview)
-			rs[parent].ConfigId = parentConfig
 			rs[parent].Type = ResourceTypeModule
+			rs[parent].IsParent = false
 		}
 
 		if childIndex.MatchString(id) {
@@ -246,7 +239,6 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 			if _, ok := rs[parent]; !ok {
 				rs[parent] = &StateOverview{}
 				rs[parent].Children = make(map[string]*StateOverview)
-				rs[parent].ConfigId = configId
 				rs[parent].Type = ResourceTypeModule
 				rs[parent].IsParent = true
 			}
@@ -261,7 +253,6 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 		if _, ok := rs[id]; !ok {
 			rs[id] = &StateOverview{}
 			rs[id].Children = make(map[string]*StateOverview)
-			rs[id].ConfigId = configId
 			rs[id].Type = ResourceTypeModule
 		}
 
@@ -300,8 +291,8 @@ func (r *rover) GenerateResourceOverview() error {
 	if !rootModule.Diagnostics.HasErrors() {
 		rc[""].Module = rootModule
 	} else {
-		fmt.Printf("Could not load configuration from: %v\n", r.WorkingDir)
-		fmt.Printf("Continuing without configuration file data...")
+		log.Printf("Could not load configuration from: %v\n", r.WorkingDir)
+		log.Printf("Continuing without configuration file data...")
 	}
 
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
@@ -323,6 +314,14 @@ func (r *rover) GenerateResourceOverview() error {
 		if r.Plan.PlannedValues.RootModule != nil {
 			r.PopulateModuleState(rso, r.Plan.PlannedValues.RootModule, false)
 		}
+	}
+
+	// Create root module in state if doesn't exist
+	if _, ok := rs[""]; !ok {
+		rs[""] = &StateOverview{}
+		rs[""].Children = make(map[string]*StateOverview)
+		rs[""].IsParent = false
+		rs[""].Type = ResourceTypeModule
 	}
 
 	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)

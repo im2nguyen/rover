@@ -244,10 +244,6 @@ func (r *rover) addEdges(base string, parent string, edgeMap map[string]Edge, re
 
 		configId := matchBrackets.ReplaceAllString(id, "")
 
-		if _, ok := r.RSO.States[id]; ok {
-			configId = r.RSO.States[id].ConfigId
-		}
-
 		var expressions map[string]*tfjson.Expression
 
 		if r.RSO.Configs[configId] != nil {
