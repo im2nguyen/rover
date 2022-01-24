@@ -1,18 +1,23 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
-	"regexp"
-
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	tfjson "github.com/hashicorp/terraform-json"
+	"io/ioutil"
+	"log"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 // ResourcesOverview represents the root module
 type ResourcesOverview struct {
-	States  map[string]*StateOverview  `json:"states,omitempty"`
-	Configs map[string]*ConfigOverview `json:"configs,omitempty"`
+	Locations map[string]string          `json:"locations,omitempty"`
+	States    map[string]*StateOverview  `json:"states,omitempty"`
+	Configs   map[string]*ConfigOverview `json:"configs,omitempty"`
 }
 
 // ResourceOverview is a modified tfjson.Plan
@@ -35,8 +40,46 @@ type ConfigOverview struct {
 	Module         *tfconfig.Module       `json:"module,omitempty"`
 }
 
-func (r *rover) PopulateConfigs(parent string, parentPath string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
+// For parsing modules.json
+type ModuleLocations struct {
+	Locations []ModuleLocation `json:"Modules,omitempty"`
+}
 
+type ModuleLocation struct {
+	Key    string `json:"Key,omitempty""`
+	Source string `json:"Source,omitempty"`
+	Dir    string `json:"Dir,omitempty"`
+}
+
+// PopulateModuleLocations Parses the modules.json file in the .terraform folder, if it exists
+// The module locations are then added to rso.Locations and referenced when loading
+// modules from the filesystem with tfconfig.LoadModule
+func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[string]string) {
+
+	moduleLocations := ModuleLocations{}
+
+	jsonFile, err := os.Open(moduleJSONFile)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer jsonFile.Close()
+
+	// read our opened jsonFile as a byte array.
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	// we unmarshal our byteArray which contains our
+	// jsonFile's content into 'users' which we defined above
+	json.Unmarshal(byteValue, &moduleLocations)
+
+	for _, loc := range moduleLocations.Locations {
+		locations[loc.Key] = fmt.Sprintf("%s/%s", r.WorkingDir, loc.Dir)
+		//fmt.Printf("%v\n", loc.Dir)
+	}
+}
+
+func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
+
+	ml := rso.Locations
 	rc := rso.Configs
 
 	prefix := parent
@@ -91,19 +134,23 @@ func (r *rover) PopulateConfigs(parent string, parentPath string, rso *Resources
 			rc[mn] = &ConfigOverview{}
 		}
 
-		childPath := m.Source
-		if parentPath != "" {
-			childPath = fmt.Sprintf("%s/%s", parentPath, childPath)
+		childKey := strings.TrimPrefix(moduleName, "module.")
+		if parentKey != "" {
+			childKey = fmt.Sprintf("%s.%s", parentKey, childKey)
 		}
 
-		if r.TFConfigExists {
-			child, _ := tfconfig.LoadModule(childPath)
+		childPath := ml[childKey]
+		child, _ := tfconfig.LoadModule(childPath)
+		// If module can be loaded from filesystem
+		if !child.Diagnostics.HasErrors() {
 			rc[mn].Module = child
+		} else {
+			fmt.Printf("Continuing without loading module from filesystem: %s\n", childKey)
 		}
 
 		rc[mn].ModuleConfig = m
 
-		r.PopulateConfigs(mn, childPath, rso, m.Module)
+		r.PopulateConfigs(mn, childKey, rso, m.Module)
 	}
 }
 
@@ -235,21 +282,32 @@ func (r *rover) GenerateResourceOverview() error {
 	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 	rso := &ResourcesOverview{}
 
+	rso.Locations = make(map[string]string)
 	rso.Configs = make(map[string]*ConfigOverview)
 	rso.States = make(map[string]*StateOverview)
 
 	rc := rso.Configs
 	rs := rso.States
 
+	// This is the location of modules.json, which contains where modules are stored on the local filesystem
+	moduleJSONPath := filepath.Join(r.WorkingDir, ".terraform/modules/modules.json")
+	r.PopulateModuleLocations(moduleJSONPath, rso.Locations)
+
 	// Create root module configuration
 	rc[""] = &ConfigOverview{}
-	if r.TFConfigExists {
-		rc[""].Module = r.Config
+	rootModule, _ := tfconfig.LoadModule(r.WorkingDir)
+	// If module can be loaded from filesystem
+	if !rootModule.Diagnostics.HasErrors() {
+		rc[""].Module = rootModule
+	} else {
+		fmt.Printf("Could not load configuration from: %v\n", r.WorkingDir)
+		fmt.Printf("Continuing without configuration file data...")
 	}
+
 	rc[""].ModuleConfig = &tfjson.ModuleCall{}
 	rc[""].ModuleConfig.Module = r.Plan.Config.RootModule
 
-	r.PopulateConfigs("", r.WorkingDir, rso, r.Plan.Config.RootModule)
+	r.PopulateConfigs("", "", rso, r.Plan.Config.RootModule)
 
 	// Populate prior state
 	if r.Plan.PriorState != nil {

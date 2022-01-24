@@ -97,10 +97,10 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 	}
 
 	parentConfig := matchBrackets.ReplaceAllString(parentModule, "")
-	parentConfigured := configs[parentConfig] != nil
+	parentConfigured := configs[parentConfig] != nil && configs[parentConfig].Module != nil
 
 	// Add variables and outputs with line numbers and file names if configured
-	if r.TFConfigExists && parentConfigured && !states[parentModule].IsParent {
+	if parentConfigured && !states[parentModule].IsParent {
 		for oName, o := range configs[parentConfig].Module.Outputs {
 			fname := filepath.Base(o.Pos.Filename)
 			oid := fmt.Sprintf("%soutput.%s", prefix, oName)
@@ -131,7 +131,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 		}
 		// Add variables and Outputs if no configuration files
-	} else if configs[parentConfig] != nil && configs[parentConfig].ModuleConfig.Module != nil && parentConfigured && !states[parentModule].IsParent {
+	} else if configs[parentConfig] != nil && configs[parentConfig].ModuleConfig.Module != nil && !states[parentModule].IsParent {
 		for oName, o := range configs[parentConfig].ModuleConfig.Module.Outputs {
 			oid := fmt.Sprintf("%soutput.%s", prefix, oName)
 			out := &Resource{
@@ -158,7 +158,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 	for id, rs := range states[parentModule].Children {
 
 		configId := matchBrackets.ReplaceAllString(id, "")
-		configured := r.TFConfigExists && configs[parentConfig] != nil && configs[configId] != nil // If there is configuration for filenames, lines, etc.
+		configured := configs[parentConfig] != nil && configs[parentConfig].Module != nil && configs[configId] != nil // If there is configuration for filenames, lines, etc.
 
 		re := &Resource{
 			Type:     rs.Type,
@@ -263,7 +263,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 						ref.Name = strings.TrimPrefix(dependsOnR, "local.")
 						rid := fmt.Sprintf("%s%s", prefix, dependsOnR)
 
-						if r.TFConfigExists {
+						if parentConfigured {
 							r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
 							parent.Children[DefaultFileName].Children[rid] = ref
 
@@ -311,11 +311,14 @@ func (r *rover) GenerateMap() error {
 		Root: rootModule.Children,
 	}
 
-	if r.TFConfigExists {
-		rootModule.Source = r.Config.Path
-		mapObj.Path = r.Config.Path
-		mapObj.RequiredProviders = r.Config.RequiredProviders
-		mapObj.RequiredCore = r.Config.RequiredCore
+	// If root module has local filesystem configuration stuff (line number/ file name info)
+	rootConfig := r.RSO.Configs[""].Module
+
+	if rootConfig != nil {
+		rootModule.Source = rootConfig.Path
+		mapObj.Path = rootConfig.Path
+		mapObj.RequiredProviders = rootConfig.RequiredProviders
+		mapObj.RequiredCore = rootConfig.RequiredCore
 		r.GenerateModuleMap(rootModule, "")
 	} else {
 		r.AddFileIfNotExists(rootModule, "", DefaultFileName)
