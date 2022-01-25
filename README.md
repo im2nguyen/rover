@@ -148,7 +148,7 @@ Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
 
 Everything is dockerized and handled by [buildx bake](docker-bake.hcl) for an agnostic usage of this repo:
 
-There are two varient of image
+There are two image variants:
 
 1. Simple: typically fat image
 
