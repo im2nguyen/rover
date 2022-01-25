@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/root/.cache \
     --artifacts="archive" \
     --snapshot="no"
 
-FROM scratch as fat
+FROM scratch as standard
 WORKDIR /tmp
 WORKDIR /src
 COPY --from=base      /etc/ssl/certs/ /etc/ssl/certs/

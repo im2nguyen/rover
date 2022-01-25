@@ -66,8 +66,8 @@ target "_slim" {
   tags   = TAGS_SLIM
 }
 
-target "_fat" {
-  target = "fat"
+target "_standard" {
+  target = "standard"
   tags   = TAGS
 }
 
@@ -107,9 +107,9 @@ group "default" {
   targets = ["image-local"]
 }
 
-# Creating fat container image for local docker
+# Creating standard container image for local docker
 target "image-local" {
-  inherits = ["_common", "_fat", "_labels"]
+  inherits = ["_common", "_standard", "_labels"]
   output   = ["type=docker"]
 }
 
@@ -119,32 +119,28 @@ target "image-slim" {
   output   = ["type=docker"]
 }
 
-# Creating fat container image for all platforms
+# Creating standard container image for all platforms
 target "image-all" {
-  inherits = ["_common", "image-platform", "_fat", "_labels"]
-  target   = "fat"
+  inherits = ["_common", "image-platform", "_standard", "_labels"]
 }
 
 # Creating slim container image for all platforms
 target "image-slim-all" {
   inherits = ["_common", "image-platform", "_slim", "_labels"]
-  target   = "slim"
 }
 
-# Creating all fat artifact for all platforms
+# Creating all standard artifact for all platforms
 target "artifact" {
-  inherits = ["_common", "artifacs"]
-  target   = "artifact"
+  inherits = ["_common", "artifacs", "_standard"]
 }
 
 # Creating all slim artifact for all platforms
 target "artifact-slim" {
-  inherits = ["_common", "artifacs"]
-  target   = "artifact-slim"
+  inherits = ["_common", "artifacs", "_slim"]
 }
 
 # Creating all full, slim artifact for all platforms
 target "artifact-all" {
-  inherits = ["artifact-all", "artifacs", "bin-platform", ]
+  inherits = ["artifact-all", "artifacs", "bin-platform"]
   target   = "artifact-all"
 }
