@@ -23,15 +23,14 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-        with:
-          image: tonistiigi/binfmt:latest
-          platforms: all
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
       - name: Set outputs
+        id: tag
         run: |
+          set -x
           echo ::set-output name=version::$(cat ${GITHUB_EVENT_PATH} | jq -r '.release.tag_name')
           echo ::set-output name=sha_short::${GITHUB_SHA::7}
 
@@ -41,8 +40,8 @@ jobs:
           TF_VERSION: "1.1.2"
           NODE_VERSION: "16"
           GO_VERSION: "1.17"
-          VERSION: ${{ steps.vars.outputs.version }}
-          GIT_SHA: ${{ steps.vars.outputs.sha_short }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          GIT_SHA: ${{ steps.tag.outputs.sha_short }}
         with:
           targets: |
             image-all
