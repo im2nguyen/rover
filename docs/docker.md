@@ -103,7 +103,14 @@ docker buildx bake artifact-all
 ```
 
 All plateforms covers in both binary and archive format
+
   - **linux**:  `amd64`, `386`, `arm64`, `arm`
   - **freebsd**: `amd64, `386`, `arm64`, `arm`
   - **windows**: `amd64, `386`, `arm64`, `arm`
   - **darwin**: `amd64, `arm64`
+
+### FAQ
+
+- Why didn't used `gcr.io/distroless/static` as base image
+
+  - There was not `386` variant at the time of refactoring dockerfile
