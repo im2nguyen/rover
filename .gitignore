@@ -8,3 +8,4 @@ Dockerfile.test
 # Ignore generated terraform files
 .terraform**
 .idea/
+.dist/
