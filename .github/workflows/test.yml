@@ -1,0 +1,30 @@
+name: UI - Build Test
+
+on:
+  push:
+    paths:
+      - "ui/**"
+
+jobs:
+  ui-build-test:
+    name: Test npm build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Build and push
+        uses: docker/bake-action@master
+        env:
+          NODE_VERSION: "16"
+        with:
+          set: |
+            *.target=ui
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
