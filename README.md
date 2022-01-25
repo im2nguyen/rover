@@ -150,7 +150,7 @@ Everything is dockerized and handled by [buildx bake](docker-bake.hcl) for an ag
 
 There are two image variants:
 
-1. Simple: typically fat image
+1. Simple: the standard image
 
 - e.g., `docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover`
 
