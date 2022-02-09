@@ -105,9 +105,9 @@ docker buildx bake artifact-all
 All plateforms covers in both binary and archive format
 
   - **linux**:  `amd64`, `386`, `arm64`, `arm`
-  - **freebsd**: `amd64, `386`, `arm64`, `arm`
-  - **windows**: `amd64, `386`, `arm64`, `arm`
-  - **darwin**: `amd64, `arm64`
+  - **freebsd**: `amd64`, `386`, `arm64`, `arm`
+  - **windows**: `amd64`, `386`, `arm64`, `arm`
+  - **darwin**: `amd64`, `arm64`
 
 ### FAQ
 
