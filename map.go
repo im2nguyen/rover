@@ -206,16 +206,33 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 				if rs.Type == ResourceTypeData {
 					ind = fmt.Sprintf("data.%s", ind)
-					fname = filepath.Base(configs[parentConfig].Module.DataResources[ind].Pos.Filename)
-					re.Line = &configs[parentConfig].Module.DataResources[ind].Pos.Line
-				} else if rs.Type == ResourceTypeResource {
-					fname = filepath.Base(configs[parentConfig].Module.ManagedResources[ind].Pos.Filename)
-					re.Line = &configs[parentConfig].Module.ManagedResources[ind].Pos.Line
 				}
 
-				r.AddFileIfNotExists(parent, parentModule, fname)
+				if rs.Type == ResourceTypeData && configs[parentConfig].Module.DataResources[ind] != nil {
 
-				parent.Children[fname].Children[id] = re
+					fname = filepath.Base(configs[parentConfig].Module.DataResources[ind].Pos.Filename)
+					fmt.Printf("%v\n", ind)
+					re.Line = &configs[parentConfig].Module.DataResources[ind].Pos.Line
+
+					r.AddFileIfNotExists(parent, parentModule, fname)
+
+					parent.Children[fname].Children[id] = re
+
+				} else if rs.Type == ResourceTypeResource && configs[parentConfig].Module.ManagedResources[ind] != nil {
+
+					fname = filepath.Base(configs[parentConfig].Module.ManagedResources[ind].Pos.Filename)
+					re.Line = &configs[parentConfig].Module.ManagedResources[ind].Pos.Line
+
+					r.AddFileIfNotExists(parent, parentModule, fname)
+
+					parent.Children[fname].Children[id] = re
+
+				} else {
+
+					r.AddFileIfNotExists(parent, parentModule, DefaultFileName)
+
+					parent.Children[DefaultFileName].Children[id] = re
+				}
 
 			} else {
 
