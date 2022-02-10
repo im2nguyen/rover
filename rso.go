@@ -211,16 +211,7 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 			} else {
 				rs[id].Change.After = rst.AttributeValues
 			}
-
-		} else {
-			if prior {
-				rs[id].Change.Before = rst.AttributeValues
-			} else {
-				rs[id].Change.After = rst.AttributeValues
-
-			}
 		}
-
 	}
 
 	for _, childModule := range module.ChildModules {
