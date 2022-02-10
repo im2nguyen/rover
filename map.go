@@ -185,7 +185,12 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 				tcr := &Resource{
 					Type: rs.Type,
-					Name: strings.TrimPrefix(crName, fmt.Sprintf("%s%s.", prefix, re.ResourceType)),
+				}
+
+				if rs.Type == ResourceTypeData {
+					tcr.Name = strings.TrimPrefix(crName, fmt.Sprintf("%sdata.%s.", prefix, re.ResourceType))
+				} else {
+					tcr.Name = strings.TrimPrefix(crName, fmt.Sprintf("%s%s.", prefix, re.ResourceType))
 				}
 
 				if cr.Change.Actions != nil {
@@ -211,7 +216,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 				if rs.Type == ResourceTypeData && configs[parentConfig].Module.DataResources[ind] != nil {
 
 					fname = filepath.Base(configs[parentConfig].Module.DataResources[ind].Pos.Filename)
-					fmt.Printf("%v\n", ind)
 					re.Line = &configs[parentConfig].Module.DataResources[ind].Pos.Line
 
 					r.AddFileIfNotExists(parent, parentModule, fname)
