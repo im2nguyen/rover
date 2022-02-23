@@ -72,11 +72,11 @@ RUN --mount=type=cache,target=/root/.cache \
     --artifacts="bin" \
     --artifacts="archive" \
     --snapshot="no" \
-    --post-hooks="upx -v --ultra-brute --best /usr/local/bin/{{ .ProjectName }}{{ .Ext }}"
+    --post-hooks="upx -v --ultra-brute /usr/local/bin/{{ .ProjectName }}{{ .Ext }}"
 
 FROM terraform as slim-tf
 COPY --from=upx / /
-RUN upx -v --ultra-brute --best /terraform
+RUN upx -v --ultra-brute /terraform
 
 FROM scratch as slim
 WORKDIR /tmp

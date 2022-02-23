@@ -129,14 +129,16 @@ target "image-slim-all" {
   inherits = ["_common", "image-platform", "_slim", "_labels"]
 }
 
-# Creating all standard artifact for all platforms
+# Creating all standard artifact
 target "artifact" {
-  inherits = ["_common", "artifacs", "_standard"]
+  inherits = ["_common", "artifacs"]
+  target = "artifact"
 }
 
-# Creating all slim artifact for all platforms
+# Creating all slim artifact
 target "artifact-slim" {
-  inherits = ["_common", "artifacs", "_slim"]
+  inherits = ["_common", "artifacs"]
+  target = "artifact-slim"
 }
 
 # Creating all full, slim artifact for all platforms
