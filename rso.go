@@ -191,7 +191,11 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 				if _, ok := rs[parent]; !ok {
 					rs[parent] = &StateOverview{}
 					rs[parent].Children = make(map[string]*StateOverview)
-					rs[parent].Type = ResourceTypeResource
+					if rst.Mode == "data" {
+						rs[parent].Type = ResourceTypeData
+					} else {
+						rs[parent].Type = ResourceTypeResource
+					}
 
 				}
 
@@ -207,16 +211,7 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 			} else {
 				rs[id].Change.After = rst.AttributeValues
 			}
-
-		} else {
-			if prior {
-				rs[id].Change.Before = rst.AttributeValues
-			} else {
-				rs[id].Change.After = rst.AttributeValues
-
-			}
 		}
-
 	}
 
 	for _, childModule := range module.ChildModules {
