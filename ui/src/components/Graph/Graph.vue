@@ -511,7 +511,7 @@ export default {
     } else {
       axios.get(`/api/graph`).then((response) => {
         this.graph = response.data;
-        //console.log(this.graph)
+        console.log(this.graph)
         this.renderGraph();
       });
     }
