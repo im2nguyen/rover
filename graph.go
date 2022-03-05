@@ -113,9 +113,16 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			label := l[len(l)-1]
 
 			midParent := parent
+
 			if midParent == mid {
-				midParent = strings.TrimSuffix(midParent, fmt.Sprintf(".%v", label))
+				midParent = nodeMap[midParent].Data.Parent
 			}
+
+			if nodeMap[midParent].Data.Type == ResourceTypeFile {
+				mid = fmt.Sprintf("%s {%s}", mid, nodeMap[parent].Data.Label)
+			}
+
+			//fmt.Printf(midParent + " - " + mid + "\n")
 
 			// Append resource type
 			nmo = append(nmo, mid)
@@ -145,6 +152,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 				},
 				Classes: fmt.Sprintf("%s-name %s", re.Type, mrChange),
 			}
+			//fmt.Printf(id + " - " + mid + "\n")
 
 			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
 
