@@ -1,4 +1,4 @@
-rover
+build/rover
 .DS_Store
 rover.zip
 plan.out
@@ -9,3 +9,4 @@ Dockerfile.test
 .terraform**
 .idea/
 .dist/
+build/
