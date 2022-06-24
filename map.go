@@ -246,7 +246,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 		} else if rs.Type == ResourceTypeModule {
 			re.Name = strings.Split(id, ".")[len(strings.Split(id, "."))-1]
 
-			if configured && !childIndex.MatchString(id) {
+			if configured && !childIndex.MatchString(id) && configs[parentConfig].Module.ModuleCalls[matchBrackets.ReplaceAllString(re.Name, "")] != nil {
 				fname := filepath.Base(configs[parentConfig].Module.ModuleCalls[matchBrackets.ReplaceAllString(re.Name, "")].Pos.Filename)
 				re.Line = &configs[parentConfig].Module.ModuleCalls[matchBrackets.ReplaceAllString(re.Name, "")].Pos.Line
 
