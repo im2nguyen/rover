@@ -2,10 +2,11 @@ build/rover
 .DS_Store
 rover.zip
 plan.out
+Dockerfile.test
+.dist
 
 # Ignore generated terraform files
 .terraform**
-
 .idea/
-
+.dist/
 build/

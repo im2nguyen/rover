@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/chromedp"
 )
 
@@ -27,39 +26,24 @@ func screenshot(s *http.Server) {
 	url := fmt.Sprintf("http://%s", s.Addr)
 
 	// this will be used to capture the file name later
-	var downloadGUID string
-
 	downloadComplete := make(chan bool)
-	chromedp.ListenTarget(ctx, func(v interface{}) {
-		if ev, ok := v.(*browser.EventDownloadProgress); ok {
-			if ev.State == browser.DownloadProgressStateCompleted {
-				downloadGUID = ev.GUID
-				close(downloadComplete)
-			}
-		}
-	})
 
+	var buf []byte
 	if err := chromedp.Run(ctx, chromedp.Tasks{
-		browser.SetDownloadBehavior(browser.SetDownloadBehaviorBehaviorAllowAndName).
-			WithDownloadPath(os.TempDir()).
-			WithEventsEnabled(true),
-
 		chromedp.Navigate(url),
 		// wait for graph to be visible
 		chromedp.WaitVisible(`#cytoscape-div`),
 		// find and click "Save Graph" button
 		chromedp.Click(`#saveGraph`, chromedp.NodeVisible),
-	}); err != nil && !strings.Contains(err.Error(), "net::ERR_ABORTED") {
-		// Note: Ignoring the net::ERR_ABORTED page error is essential here since downloads
-		// will cause this error to be emitted, although the download will still succeed.
+		chromedp.Screenshot("#cytoscape-div", &buf, chromedp.NodeVisible),
+	}); err != nil {
 		log.Fatal(err)
 	}
-	<-downloadComplete
-
-	e := moveFile(fmt.Sprintf("%v/%v", os.TempDir(), downloadGUID), "./rover.svg")
-	if e != nil {
-		log.Fatal(e)
+	if err := ioutil.WriteFile("rover.svg", buf, 0o644); err != nil {
+		log.Fatal(err)
 	}
+
+	<-downloadComplete
 
 	log.Println("Image generation complete.")
 

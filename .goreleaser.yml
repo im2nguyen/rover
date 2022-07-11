@@ -4,6 +4,8 @@ before:
   hooks:
     # this is just an example and not a requirement for provider building/publishing
     - go mod tidy
+    - go mod download
+
 builds:
   - env:
       # goreleaser does not work with CGO, it could also complicate
@@ -14,7 +16,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}"
+      - "-s -w"
     goos:
       - freebsd
       - windows
@@ -29,6 +31,7 @@ builds:
       - goos: darwin
         goarch: "386"
     binary: "{{ .ProjectName }}_v{{ .Version }}"
+
 archives:
   - format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
