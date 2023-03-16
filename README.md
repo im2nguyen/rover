@@ -38,7 +38,7 @@ Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
 Standalone mode generates a `rover.zip` file containing all the static assets.
 
 ```
-$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -standalone true
+$ docker run --rm -it -p 9000:9000 -v "$(pwd):/src" im2nguyen/rover -standalone true
 ```
 
 After all the assets are generated, unzip `rover.zip` and open `rover/index.html` in your favourite web browser.
@@ -54,7 +54,7 @@ $ printenv | grep "AWS" > .env
 Then, add it as environment variables to your Docker container with `--env-file`.
 
 ```
-$ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/rover
+$ docker run --rm -it -p 9000:9000 -v "$(pwd):/src" --env-file ./.env im2nguyen/rover
 ```
 
 ### Define tfbackend, tfvars and Terraform variables
@@ -62,7 +62,7 @@ $ docker run --rm -it -p 9000:9000 -v $(pwd):/src --env-file ./.env im2nguyen/ro
 Use `-tfBackendConfig` to define backend config files and `-tfVarsFile` or `-tfVar` to define variables. For example, you can run the following in the `example/random-test` directory to overload variables.
 
 ```
-$ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -tfBackendConfig test.tfbackend -tfVarsFile test.tfvars -tfVar max_length=4
+$ docker run --rm -it -p 9000:9000 -v "$(pwd):/src" im2nguyen/rover -tfBackendConfig test.tfbackend -tfVarsFile test.tfvars -tfVar max_length=4
 ```
 
 ### Image generation
@@ -70,7 +70,7 @@ $ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover -tfBackendConf
 Use `-genImage` to generate and save the visualization as a SVG image.
 
 ```
-$ docker run --rm -it  -v $(pwd):/src im2nguyen/rover -genImage true
+$ docker run --rm -it  -v "$(pwd):/src" im2nguyen/rover -genImage true
 ```
 
 ## Installation
