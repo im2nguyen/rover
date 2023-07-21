@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <main-nav @saveGraph="saveGraph" />
+    <main-nav @saveGraph="saveGraph" @resetZoom="resetZoom" />
     <div class="row">
       <div class="col col-4-lg">
         <fieldset>
@@ -79,6 +79,9 @@ export default {
     },
     selectResource(resourceID) {
       this.resourceID = resourceID;
+    },
+    resetZoom() {
+      this.$refs.filegraph.resetZoom();
     },
   },
 };

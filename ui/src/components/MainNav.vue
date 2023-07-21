@@ -6,6 +6,9 @@
       </a>
     </div>
     <div class="nav-right">
+      <a id="resetZoom" class="button outline" @click="$emit('resetZoom')"
+        >Reset</a
+      >
       <a id="saveGraph" class="button outline" @click="saveGraph()"
         >Save Graph</a
       >

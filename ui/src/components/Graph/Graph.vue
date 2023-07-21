@@ -10,7 +10,7 @@
 <script>
 import { saveAs } from "file-saver";
 import klay from "cytoscape-klay";
-import svg from 'cytoscape-svg';
+import svg from "cytoscape-svg";
 import nodeHtmlLabel from "cytoscape-node-html-label";
 import axios from "axios";
 
@@ -397,56 +397,87 @@ export default {
 
       // Add click event
       cy.on("click", "node", function (event) {
-        var n = event.target;
+        if (event.originalEvent.ctrlKey) {
+          var n = event.target;
+          let node = { id: n.data().id, in: [], out: [] };
 
-        let node = { id: n.data().id, in: [], out: [] };
-        
-        const ce = n.connectedEdges();
-        for (let i = 0; i < ce.length; i += 1) {
-          let ed = ce[i].data();
-          if (n.data().id === ed.source) {
-            node.out.push(ed.target);
-          } else {
-            node.in.push(ed.source);
+          const ce = n.connectedEdges();
+          for (let i = 0; i < ce.length; i += 1) {
+            let ed = ce[i].data();
+            if (n.data().id === ed.source) {
+              node.out.push(ed.target);
+            } else {
+              node.in.push(ed.source);
+            }
           }
-        }
 
-        // When click on resource group
-        let rg = node.id.split("/")[1];
-        if (rg) {
-          if (rg.endsWith(".tf")) {
+          // When click on resource group
+          let rg = node.id.split("/")[1];
+          if (rg) {
+            if (rg.endsWith(".tf")) {
+              return;
+            }
+          }
+
+          // When click on directory
+          if (["basename", "fname"].includes(n.data().type)) {
+            vm.selectedNode = "";
+            vm.unhighlightNodeHandler(n);
             return;
+          } else {
+            vm.selectedNode = node.id;
+            vm.highlightNodeHandler(n);
           }
-        }
 
-        // When click on directory
-        if (["basename", "fname"].includes(n.data().type)) {
-          vm.selectedNode = "";
-          vm.unhighlightNodePaths(n);
-          return;
-        } else {
-          vm.selectedNode = node.id;
-          vm.highlightNodePaths(n);
+          vm.$emit("getNode", node.id);
         }
-
-        vm.$emit("getNode", node.id);
       });
+
+      document.body.addEventListener("keydown", vm.toggleSelectionMode);
+      document.body.addEventListener("keyup", vm.toggleSelectionMode);
 
       // Add hover event
-      cy.on("mouseover", "node", function (event) {
-        let node = event.target;
-        if (!vm.selectedNode) {
-          vm.highlightNodePaths(node);
-        }
-      });
-      cy.on("mouseout", "node", function (event) {
-        var node = event.target;
-        if (!vm.selectedNode) {
-          vm.unhighlightNodePaths(node);
+      cy.on("mouseover", "node", vm.highlightNodes);
+      cy.on("mouseout", "node", vm.unhighlightNodes);
+    },
+
+    enableSelection: function () {
+      this.graph.nodes.forEach((node) => {
+        if (["variable", "output", "resource"].includes(node.data.type)) {
+          node.pannable = false;
+          node.selectable = true;
         }
       });
     },
-    highlightNodePaths: function (node) {
+
+    disableSelection: function () {
+      this.graph.nodes.forEach((node) => {
+        if (["variable", "output", "resource"].includes(node.data.type)) {
+          node.pannable = true;
+          node.selectable = false;
+        }
+      });
+    },
+
+    toggleSelectionMode: function (e) {
+      this.enableSelection();
+      if (e.key === "Control" && ["keydown", "keyup"].includes(e.type)) {
+        if (e.type === "keyup") {
+          this.disableSelection();
+        } else if (e.type === "keydown") {
+          this.enableSelection();
+        }
+      }
+    },
+
+    highlightNodes: function (event) {
+      let node = event.target;
+      if (event.originalEvent.ctrlKey && !this.selectedNode) {
+        this.highlightNodeHandler(node);
+      }
+    },
+
+    highlightNodeHandler: function (node) {
       let cy = this.$refs.cy.instance;
       if (
         !["basename", "fname"].includes(node.data().type) &&
@@ -471,7 +502,15 @@ export default {
         node.incomers().addClass("dashed");
       }
     },
-    unhighlightNodePaths: function (node) {
+
+    unhighlightNodes: function (event) {
+      var node = event.target;
+      if (event.originalEvent.ctrlKey && !this.selectedNode) {
+        this.unhighlightNodeHandler(node);
+      }
+    },
+
+    unhighlightNodeHandler: function (node) {
       let cy = this.$refs.cy.instance;
       if (!node.data().type.includes[("basename", "fname")]) {
         cy.elements()
@@ -480,13 +519,16 @@ export default {
           .removeClass("dashed");
       }
     },
+
     saveGraph: function () {
       let cy = this.$refs.cy.instance;
-      var svgContent = cy.svg({scale: 0.1, full: true});
-			var blob = new Blob([svgContent], {type:"image/svg+xml;charset=utf-8"});
-			saveAs(blob, "rover.svg");
-			
+      var svgContent = cy.svg({ scale: 0.1, full: true });
+      var blob = new Blob([svgContent], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      saveAs(blob, "rover.svg");
     },
+
     runLayouts: function () {
       let cy = this.$refs.cy.instance;
 
@@ -500,7 +542,12 @@ export default {
         },
       }).run();
     },
+
+    resetZoom() {
+      this.$refs.cy.instance.fit();
+    },
   },
+
   mounted() {
     // if graph.js file is present (standalone mode)
     // eslint-disable-next-line no-undef
@@ -512,6 +559,7 @@ export default {
       axios.get(`/api/graph`).then((response) => {
         this.graph = response.data;
         //console.log(this.graph)
+        this.disableSelection();
         this.renderGraph();
       });
     }
@@ -613,7 +661,6 @@ export default {
   border: 0;
 }
 </style>
-
 
 <style scoped>
 fieldset {
