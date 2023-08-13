@@ -2,7 +2,7 @@
 ARG TF_VERSION=light
 
 # Build ui
-FROM node:16-alpine as ui
+FROM node:20-alpine as ui
 WORKDIR /src
 # Copy specific package files
 COPY ./ui/package-lock.json ./
@@ -15,17 +15,17 @@ RUN npm set progress=false && npm config set depth 0 && npm install
 COPY ./ui/public ./public
 COPY ./ui/src ./src
 # build (to dist folder)
-RUN npm run build
+RUN NODE_OPTIONS='--openssl-legacy-provider' npm run build
 
 # Build rover
-FROM golang:1.17 AS rover
+FROM golang:1.21 AS rover
 WORKDIR /src
 # Copy full source
 COPY . .
 # Copy ui/dist from ui stage as it needs to embedded
 COPY --from=ui ./src/dist ./ui/dist
 # Build rover
-RUN go get -d -v golang.org/x/net/html  
+RUN go get -d -v golang.org/x/net/html
 RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
 
 # Release stage

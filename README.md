@@ -1,6 +1,6 @@
 ## Rover - Terraform Visualizer
 
-Rover is a [Terraform](http://terraform.io/) visualizer. 
+Rover is a [Terraform](http://terraform.io/) visualizer.
 
 In order to do this, Rover:
 
@@ -8,7 +8,7 @@ In order to do this, Rover:
 1. parses the `plan` and configuration files to generate three items: the resource overview (`rso`), the resource map (`map`), and the resource graph (`graph`).
 1. consumes the `rso`, `map`, and `graph` to generate an interactive configuration and state visualization hosts on `0.0.0.0:9000`.
 
-Feedback (via issues) and pull requests are appreciated! 
+Feedback (via issues) and pull requests are appreciated!
 
 ![Rover Screenshot](docs/rover-cropped-screenshot.png)
 
@@ -83,7 +83,7 @@ You can download Rover binary specific to your system by visiting the [Releases 
 
 ### Build from source
 
-You can build Rover manually by cloning this repository, then building the frontend and compiling the binary. It requires Go v1.16+ and `npm`.
+You can build Rover manually by cloning this repository, then building the frontend and compiling the binary. It requires Go v1.21+ and `npm`.
 
 #### Build frontend
 
@@ -166,4 +166,3 @@ $ rover -workingDir "example/eks-cluster" -tfPath "/Users/dos/terraform"
 ```
 
 Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
-
