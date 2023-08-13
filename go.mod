@@ -1,6 +1,6 @@
 module rover
 
-go 1.17
+go 1.21
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20211205231339-d2673e93eee4
