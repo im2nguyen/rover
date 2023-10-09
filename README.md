@@ -33,6 +33,23 @@ $ docker run --rm -it -p 9000:9000 -v $(pwd):/src im2nguyen/rover
 
 Once Rover runs on `0.0.0.0:9000`, navigate to it to find the visualization!
 
+### Run on Terraform plan file
+
+Use `-planJSONPath` to start Rover on Terraform plan file. The `plan.json` file should be in Linux version - Unix (LF), UTF-8.
+
+First, generate the plan file in JSON format.
+
+```
+$ terraform plan -out plan.out
+$ terraform show -json plan.out > plan.json
+```
+
+Then, run Rover on it.
+
+```
+$ docker run --rm -it -p 9000:9000 -v $(pwd)/plan.json:/src/plan.json im2nguyen/rover:latest -planJSONPath=plan.json
+```
+
 ### Standalone mode
 
 Standalone mode generates a `rover.zip` file containing all the static assets.
