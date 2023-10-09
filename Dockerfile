@@ -1,5 +1,5 @@
 # Prep base stage
-ARG TF_VERSION=light
+ARG TF_VERSION=1.5.5
 
 # Build ui
 FROM node:20-alpine as ui
@@ -30,8 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
 
 # Release stage
 FROM hashicorp/terraform:$TF_VERSION AS release
-# Copy terraform binary to the rover's default terraform path
-RUN cp /bin/terraform /usr/local/bin/terraform
+
 # Copy rover binary
 COPY --from=rover /src/rover /bin/rover
 RUN chmod +x /bin/rover

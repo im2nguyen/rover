@@ -69,7 +69,7 @@ func main() {
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, planJSONPath, workspaceName, tfcOrgName, tfcWorkspaceName string
 	var standalone, genImage, showSensitive, getVersion, tfcNewRun bool
 	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
-	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
+	flag.StringVar(&tfPath, "tfPath", "/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
