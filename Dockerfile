@@ -18,7 +18,7 @@ COPY ./ui/src ./src
 RUN NODE_OPTIONS='--openssl-legacy-provider' npm run build
 
 # Build rover
-FROM golang:1.21 AS rover
+FROM golang:1.22 AS rover
 WORKDIR /src
 # Copy full source
 COPY . .
