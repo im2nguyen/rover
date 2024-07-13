@@ -7,8 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -204,10 +204,8 @@ func (r *rover) generateAssets() error {
 }
 
 func (r *rover) getPlan() error {
-	tmpDir, err := ioutil.TempDir("", "rover")
-	if err != nil {
-		return err
-	}
+	tmpDir := os.TempDir()
+
 	defer os.RemoveAll(tmpDir)
 
 	tf, err := tfexec.NewTerraform(r.WorkingDir, r.TfPath)
@@ -235,7 +233,7 @@ func (r *rover) getPlan() error {
 		}
 		defer planJsonFile.Close()
 
-		planJson, err := ioutil.ReadAll(planJsonFile)
+		planJson, err := io.ReadAll(planJsonFile)
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanJSONPath, err))
 		}
@@ -275,7 +273,7 @@ func (r *rover) getPlan() error {
 		}
 
 		// Retrieve all runs from specified TFC workspace
-		runs, err := client.Runs.List(context.Background(), ws.ID, tfe.RunListOptions{})
+		runs, err := client.Runs.List(context.Background(), ws.ID, &tfe.RunListOptions{})
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to retrieve plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
 		}
@@ -332,7 +330,7 @@ func (r *rover) getPlan() error {
 		}
 
 		// Get most recent plan file
-		planBytes, err := client.Plans.JSONOutput(context.Background(), planID)
+		planBytes, err := client.Plans.ReadJSONOutput(context.Background(), planID)
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to retrieve plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
 		}
