@@ -11,8 +11,10 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-type Action string
-type ResourceType string
+type (
+	Action       string
+	ResourceType string
+)
 
 const (
 	ResourceTypeFile     ResourceType = "file"
@@ -84,7 +86,6 @@ type ModuleCall struct {
 }
 
 func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
-
 	childIndex := regexp.MustCompile(`\[[^[\]]*\]$`)
 	matchBrackets := regexp.MustCompile(`\[[^\[\]]*\]`)
 
@@ -239,7 +240,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 				}
 
 			} else {
-
 				parent.Children[id] = re
 			}
 
@@ -290,7 +290,6 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 
 						} else {
 							parent.Children[rid] = ref
-
 						}
 					}
 				}
@@ -301,9 +300,7 @@ func (r *rover) GenerateModuleMap(parent *Resource, parentModule string) {
 }
 
 func (r *rover) AddFileIfNotExists(module *Resource, parentModule string, fname string) {
-
 	if _, ok := module.Children[fname]; !ok {
-
 		module.Children[fname] = &Resource{
 			Type:     ResourceTypeFile,
 			Name:     fname,

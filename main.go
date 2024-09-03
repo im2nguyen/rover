@@ -7,8 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -174,7 +174,6 @@ func main() {
 			log.Fatalf("Could not start server: %s\n", err.Error())
 		}
 	}
-
 }
 
 func (r *rover) generateAssets() error {
@@ -204,7 +203,7 @@ func (r *rover) generateAssets() error {
 }
 
 func (r *rover) getPlan() error {
-	tmpDir, err := ioutil.TempDir("", "rover")
+	tmpDir, err := os.MkdirTemp("", "rover")
 	if err != nil {
 		return err
 	}
@@ -235,7 +234,7 @@ func (r *rover) getPlan() error {
 		}
 		defer planJsonFile.Close()
 
-		planJson, err := ioutil.ReadAll(planJsonFile)
+		planJson, err := io.ReadAll(planJsonFile)
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to read Plan (%s): %s", r.PlanJSONPath, err))
 		}

@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-config-inspect/tfconfig"
-	tfjson "github.com/hashicorp/terraform-json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	tfjson "github.com/hashicorp/terraform-json"
 )
 
 // ResourcesOverview represents the root module
@@ -45,7 +46,7 @@ type ModuleLocations struct {
 }
 
 type ModuleLocation struct {
-	Key    string `json:"Key,omitempty""`
+	Key    string `json:"Key,omitempty"`
 	Source string `json:"Source,omitempty"`
 	Dir    string `json:"Dir,omitempty"`
 }
@@ -54,7 +55,6 @@ type ModuleLocation struct {
 // The module locations are then added to rso.Locations and referenced when loading
 // modules from the filesystem with tfconfig.LoadModule
 func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[string]string) {
-
 	moduleLocations := ModuleLocations{}
 
 	jsonFile, err := os.Open(moduleJSONFile)
@@ -64,7 +64,7 @@ func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[str
 	defer jsonFile.Close()
 
 	// read our opened jsonFile as a byte array.
-	byteValue, _ := ioutil.ReadAll(jsonFile)
+	byteValue, _ := io.ReadAll(jsonFile)
 
 	// we unmarshal our byteArray which contains our
 	// jsonFile's content into 'users' which we defined above
@@ -72,12 +72,11 @@ func (r *rover) PopulateModuleLocations(moduleJSONFile string, locations map[str
 
 	for _, loc := range moduleLocations.Locations {
 		locations[loc.Key] = fmt.Sprintf("%s/%s", r.WorkingDir, loc.Dir)
-		//fmt.Printf("%v\n", loc.Dir)
+		// fmt.Printf("%v\n", loc.Dir)
 	}
 }
 
 func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesOverview, config *tfjson.ConfigModule) {
-
 	ml := rso.Locations
 	rc := rso.Configs
 
@@ -114,7 +113,7 @@ func (r *rover) PopulateConfigs(parent string, parentKey string, rso *ResourcesO
 		}
 
 		rc[address].ResourceConfig = resource
-		//rc[address].DependsOn = resource.DependsOn
+		// rc[address].DependsOn = resource.DependsOn
 
 		if _, ok := rc[parent]; !ok {
 			rc[parent] = &ConfigOverview{}
@@ -162,7 +161,7 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 	for _, rst := range module.Resources {
 		id := rst.Address
 		parent := module.Address
-		//fmt.Printf("ID: %v\n", id)
+		// fmt.Printf("ID: %v\n", id)
 		if rst.AttributeValues != nil {
 
 			// Add resource to parent
@@ -203,7 +202,7 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 
 			}
 
-			//fmt.Printf("%v - %v\n", id, parent)
+			// fmt.Printf("%v - %v\n", id, parent)
 			rs[parent].Children[id] = rs[id]
 
 			if prior {
@@ -257,7 +256,6 @@ func (r *rover) PopulateModuleState(rso *ResourcesOverview, module *tfjson.State
 
 		r.PopulateModuleState(rso, childModule, prior)
 	}
-
 }
 
 // GenerateResourceOverview - Overview of files and their resources
@@ -321,7 +319,7 @@ func (r *rover) GenerateResourceOverview() error {
 
 	// reIsChild := regexp.MustCompile(`^\w+\.\w+[\.\[]`)
 	// reGetParent := regexp.MustCompile(`^\w+\.\w+`)
-	//reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
+	// reIsChild := regexp.MustCompile(`^\w+\.[\w-]+[\.\[]`)
 
 	// Loop through output changes
 	for outputName, output := range r.Plan.OutputChanges {
