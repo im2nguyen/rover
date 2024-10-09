@@ -69,7 +69,7 @@ func main() {
 	var tfPath, workingDir, name, zipFileName, ipPort, planPath, planJSONPath, workspaceName, tfcOrgName, tfcWorkspaceName string
 	var standalone, genImage, showSensitive, getVersion, tfcNewRun bool
 	var tfVarsFiles, tfVars, tfBackendConfigs arrayFlags
-	flag.StringVar(&tfPath, "tfPath", "/usr/local/bin/terraform", "Path to Terraform binary")
+	flag.StringVar(&tfPath, "tfPath", "/opt/homebrew/bin/terraform", "Path to Terraform binary")
 	flag.StringVar(&workingDir, "workingDir", ".", "Path to Terraform configuration")
 	flag.StringVar(&name, "name", "rover", "Configuration name")
 	flag.StringVar(&zipFileName, "zipFileName", "rover", "Standalone zip file name")
@@ -275,7 +275,7 @@ func (r *rover) getPlan() error {
 		}
 
 		// Retrieve all runs from specified TFC workspace
-		runs, err := client.Runs.List(context.Background(), ws.ID, tfe.RunListOptions{})
+		runs, err := client.Runs.List(context.Background(), ws.ID, &tfe.RunListOptions{})
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to retrieve plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
 		}
@@ -332,7 +332,14 @@ func (r *rover) getPlan() error {
 		}
 
 		// Get most recent plan file
-		planBytes, err := client.Plans.JSONOutput(context.Background(), planID)
+		plan, err := client.Plans.Read(context.Background(), planID)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to retrieve plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
+		}
+		planBytes, err := json.Marshal(plan)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to marshal plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
+		}
 		if err != nil {
 			return errors.New(fmt.Sprintf("Unable to retrieve plan from %s in %s organization. %s", r.TFCWorkspaceName, r.TFCOrgName, err))
 		}

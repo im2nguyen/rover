@@ -161,7 +161,7 @@ Navigate into `random-test` example configuration. This directory contains confi
 $ cd example/random-test
 ```
 
-Run Rover. Rover will start running in the current directory and assume the Terraform binary lives in `/usr/local/bin/terraform` by default.
+Run Rover. Rover will start running in the current directory and assume the Terraform binary lives in `/opt/homebrew/bin/terraform` by default.
 
 ```
 $ rover

@@ -31,7 +31,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
 # Release stage
 FROM hashicorp/terraform:$TF_VERSION AS release
 # Copy terraform binary to the rover's default terraform path
-RUN cp /bin/terraform /usr/local/bin/terraform
+RUN cp /bin/terraform /opt/homebrew/bin/terraform
 # Copy rover binary
 COPY --from=rover /src/rover /bin/rover
 RUN chmod +x /bin/rover
