@@ -88,6 +88,9 @@ func AddEmbeddedToZip(fe fs.FS, zipWriter *zip.Writer, filename string) error {
 		content = strings.ReplaceAll(content, "=\"/", "=\"./")
 
 		tempFileName, tempFile, err := createTempFile("temp-index.html", []byte(content))
+		if err != nil {
+			return err
+		}
 		defer os.Remove(tempFile.Name()) // clean up
 		defer tempFile.Close()
 
@@ -105,6 +108,9 @@ func AddEmbeddedToZip(fe fs.FS, zipWriter *zip.Writer, filename string) error {
 		rawContent := bytes.ReplaceAll(curContent, []byte("r.p+\""), []byte("\"./"))
 
 		tempFileName, tempFile, err := createTempFile("temp-index.html", rawContent)
+		if err != nil {
+			return err
+		}
 		defer os.Remove(tempFile.Name()) // clean up
 		defer tempFile.Close()
 
@@ -136,13 +142,16 @@ func AddFileToZip(zipWriter *zip.Writer, fileType string, j interface{}) error {
 
 	b, err := json.Marshal(j)
 	if err != nil {
-		return fmt.Errorf("error producing JSON: %s\n", err)
+		return fmt.Errorf("error producing JSON: %s", err)
 	}
 
 	// add syntax to make json file a js object
 	content := fmt.Sprintf("const %s = %s", fileType, string(b))
 
 	tempFileName, tempFile, err := createTempFile(filename, []byte(content))
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tempFile.Name()) // clean up
 	defer tempFile.Close()
 

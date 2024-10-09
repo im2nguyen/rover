@@ -18,7 +18,7 @@ COPY ./ui/src ./src
 RUN NODE_OPTIONS='--openssl-legacy-provider' npm run build
 
 # Build rover
-FROM golang:1.21 AS rover
+FROM golang:1.23.2 AS rover
 WORKDIR /src
 # Copy full source
 COPY . .
@@ -31,7 +31,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
 # Release stage
 FROM hashicorp/terraform:$TF_VERSION AS release
 # Copy terraform binary to the rover's default terraform path
-RUN cp /bin/terraform /opt/homebrew/bin/terraform
+RUN cp /bin/terraform /usr/local/bin/terraform
+
 # Copy rover binary
 COPY --from=rover /src/rover /bin/rover
 RUN chmod +x /bin/rover
