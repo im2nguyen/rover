@@ -13,7 +13,6 @@ import (
 )
 
 func (ro *rover) startServer(ipPort string, frontendFS http.Handler) error {
-
 	m := http.NewServeMux()
 	s := http.Server{Addr: ipPort, Handler: m}
 
@@ -75,5 +74,4 @@ func (ro *rover) startServer(ipPort string, frontendFS http.Handler) error {
 
 	// Start the blocking server loop.
 	return s.Serve(l)
-
 }

@@ -89,11 +89,9 @@ func (r *rover) GenerateGraph() error {
 }
 
 func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, resources map[string]*Resource) []string {
-
 	nmo := []string{}
 
 	for id, re := range resources {
-
 		if re.Type == ResourceTypeResource || re.Type == ResourceTypeData {
 
 			pid := parent
@@ -101,7 +99,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			if nodeMap[parent].Data.Type == ResourceTypeFile {
 				pid = strings.TrimSuffix(pid, nodeMap[parent].Data.Label)
 				pid = strings.TrimSuffix(pid, ".")
-				//qfmt.Printf("%v\n", pid)
+				// qfmt.Printf("%v\n", pid)
 			}
 
 			mid := fmt.Sprintf("%v.%v", pid, re.ResourceType)
@@ -122,7 +120,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 				mid = fmt.Sprintf("%s {%s}", mid, nodeMap[parent].Data.Label)
 			}
 
-			//fmt.Printf(midParent + " - " + mid + "\n")
+			// fmt.Printf(midParent + " - " + mid + "\n")
 
 			// Append resource type
 			nmo = append(nmo, mid)
@@ -152,7 +150,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 				},
 				Classes: fmt.Sprintf("%s-name %s", re.Type, mrChange),
 			}
-			//fmt.Printf(id + " - " + mid + "\n")
+			// fmt.Printf(id + " - " + mid + "\n")
 
 			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
 
@@ -161,7 +159,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			if parent != base {
 				fid = fmt.Sprintf("%s.%s", parent, fid)
 			}
-			//fmt.Printf("%v\n", fid)
+			// fmt.Printf("%v\n", fid)
 			nmo = append(nmo, fid)
 			nodeMap[fid] = Node{
 				Data: NodeData{
@@ -187,7 +185,7 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			ls := strings.Split(id, ".")
 			label := ls[len(ls)-1]
 
-			//fmt.Printf("%v - %v\n", id, re.Type)
+			// fmt.Printf("%v - %v\n", id, re.Type)
 
 			nmo = append(nmo, id)
 			nodeMap[id] = Node{
@@ -205,16 +203,13 @@ func (r *rover) addNodes(base string, parent string, nodeMap map[string]Node, re
 			nmo = append(nmo, r.addNodes(base, id, nodeMap, re.Children)...)
 
 		}
-
 	}
 
 	return nmo
-
 }
 
 // GenerateNodes -
 func (r *rover) GenerateNodes() []Node {
-
 	nodeMap := make(map[string]Node)
 	nmo := []string{}
 
@@ -336,7 +331,7 @@ func (r *rover) GenerateEdges() []Edge {
 	edgeMap := make(map[string]Edge)
 	emo := []string{}
 
-	//config := r.Plan.Config.RootModule
+	// config := r.Plan.Config.RootModule
 
 	emo = append(emo, r.addEdges("", "", edgeMap, r.Map.Root)...)
 
